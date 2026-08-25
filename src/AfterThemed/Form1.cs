@@ -8,6 +8,7 @@ namespace DvauiThemeEditor;
 public partial class Form1 : Form
 {
     private enum PanelInstallAction { None, Apply, Restore }
+    private sealed record GeneratedThemeFiles(string NativePath, LegacyAeThemeCompanion? Companion);
 
     private readonly TextBox source = NewTextBox();
     private readonly TextBox target = NewTextBox();
@@ -676,16 +677,24 @@ public partial class Form1 : Form
         preset.SelectedIndex is 3 or 4 or 5,
         preset.SelectedIndex switch { 4 => .45f, 5 => .55f, _ => 0f });
 
-    private string GenerateTo(string fileName)
+    private GeneratedThemeFiles GenerateTo(string fileName)
     {
         var original = EnsureOriginalSnapshot();
+        var settings = ReadSettings();
         var output = Path.Combine(Variants, fileName);
-        var hash = ThemePatcher.Generate(original, output, ReadSettings(), ReadFontFamily(), ReadTextReplacements());
+        var hash = ThemePatcher.Generate(original, output, settings, ReadFontFamily(), ReadTextReplacements());
         Log($"Generated: {output}\r\nSHA-256: {hash}");
-        return output;
+        var companionName = fileName.StartsWith("dvaui.", StringComparison.OrdinalIgnoreCase)
+            ? "AfterFXLib." + fileName["dvaui.".Length..]
+            : "AfterFXLib." + fileName;
+        var companion = LegacyAeThemePatcher.GenerateForDvaui(
+            target.Text, Originals, Path.Combine(Variants, companionName), settings);
+        if (companion is not null)
+            Log($"Generated AE 2020 native theme companion: {companion.InputPath}\r\nSHA-256: {companion.Sha256}");
+        return new GeneratedThemeFiles(output, companion);
     }
 
-    private void GenerateVariant() => Try(() => GenerateTo($"dvaui.{SafeName()}.dll"));
+    private void GenerateVariant() => Try(() => _ = GenerateTo($"dvaui.{SafeName()}.dll"));
 
     private void GenerateAndInstall()
     {
@@ -696,15 +705,22 @@ public partial class Form1 : Form
             if (themePanels.Checked)
             {
                 PanelThemeManager.SaveConfiguration(PanelThemeFile, ReadSettings(), themeName.Text, ReadFontFamily());
-                InstallElevated(output, "Installation", PanelInstallAction.Apply, PanelThemeFile);
+                InstallElevated(output.NativePath, "Installation", PanelInstallAction.Apply, PanelThemeFile,
+                    output.Companion);
             }
-            else InstallElevated(output, "Installation");
+            else InstallElevated(output.NativePath, "Installation", companion: output.Companion);
         });
     }
 
     private void InstallElevated(string input, string operation, PanelInstallAction panelAction = PanelInstallAction.None,
-        string? panelConfiguration = null)
+        string? panelConfiguration = null, LegacyAeThemeCompanion? companion = null)
     {
+        if (companion is not null)
+        {
+            InstallThemeSetElevated(input, operation, panelAction, panelConfiguration, companion);
+            return;
+        }
+
         var nativeInstallReportFile = Path.Combine(Reports,
             $"native-install-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.json");
         var arguments = panelAction switch
@@ -736,6 +752,63 @@ public partial class Form1 : Form
         try { File.Delete(nativeInstallReportFile); } catch { /* Keep a harmless success report if cleanup is blocked. */ }
     }
 
+    private void InstallThemeSetElevated(string nativeInput, string operation, PanelInstallAction panelAction,
+        string? panelConfiguration, LegacyAeThemeCompanion companion)
+    {
+        Directory.CreateDirectory(Reports);
+        var id = $"{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
+        var manifestPath = Path.Combine(Reports, $"theme-file-set-{id}.json");
+        var reportPath = Path.Combine(Reports, $"theme-file-set-result-{id}.json");
+        var manifest = new ThemeFileSetManifest(Backups,
+        [
+            new ThemeFileInstall(companion.InputPath, companion.TargetPath),
+            new ThemeFileInstall(nativeInput, target.Text)
+        ]);
+        ThemeFileSetStore.WriteManifest(manifestPath, manifest);
+
+        var arguments = panelAction switch
+        {
+            PanelInstallAction.Apply =>
+                $"--install-theme-set-with-panel-apply {Quote(manifestPath)} {Quote(reportPath)} {Quote(PanelBackups)} {Quote(panelConfiguration!)} {Quote(PanelReportFile)}",
+            PanelInstallAction.Restore =>
+                $"--install-theme-set-with-panel-restore {Quote(manifestPath)} {Quote(reportPath)} {Quote(PanelBackups)} {Quote(PanelReportFile)}",
+            _ => $"--install-theme-set {Quote(manifestPath)} {Quote(reportPath)}"
+        };
+        if (panelAction != PanelInstallAction.None && File.Exists(PanelReportFile)) File.Delete(PanelReportFile);
+        var psi = new ProcessStartInfo
+        {
+            FileName = Environment.ProcessPath!,
+            UseShellExecute = true,
+            Verb = "runas",
+            Arguments = arguments
+        };
+        using var process = Process.Start(psi) ??
+                            throw new InvalidOperationException("Could not start the elevated theme file-set installer.");
+        process.WaitForExit();
+        var report = ThemeFileSetStore.TryReadReport(reportPath);
+        ThemeFileSetVerifier.EnsureSucceeded(process.ExitCode, manifest, report, reportPath, operation);
+
+        if (panelAction != PanelInstallAction.None)
+        {
+            if (!File.Exists(PanelReportFile))
+                throw new InvalidOperationException(
+                    $"{operation} installed the native theme files, but the panel operation did not return a report.");
+            LogPanelReport(JsonSerializer.Deserialize<PanelOperationReport>(File.ReadAllText(PanelReportFile)));
+            if (process.ExitCode == 8)
+                throw new InvalidOperationException(
+                    $"{operation} installed the native theme files, but one or more panel files had conflicts and were left unchanged. See the activity log.");
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"{operation} installed the native theme files, but the panel operation failed (exit code {process.ExitCode}). See the activity log.");
+        }
+        else if (process.ExitCode != 0)
+            throw new InvalidOperationException($"{operation} failed or was cancelled.");
+
+        Log($"{operation} completed. Both AE 2020 native theme files were verified and backed up in {Backups}.");
+        try { File.Delete(manifestPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
+        try { File.Delete(reportPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
+    }
+
     private void Inventory()
     {
         Try(() =>
@@ -758,12 +831,15 @@ public partial class Form1 : Form
             if (targetPath.Length == 0) throw new InvalidOperationException("Select the installed After Effects dvaui.dll first.");
             var restoreDll = OriginalDllStore.CreateRestoreDll(targetPath, Originals,
                 Path.Combine(Variants, "dvaui.restore-original.dll"));
+            var companion = LegacyAeThemePatcher.CreateRestoreForDvaui(targetPath, Originals,
+                Path.Combine(Variants, "AfterFXLib.restore-original.dll"));
             source.Text = OriginalDllStore.RequireExistingOriginal(targetPath, Originals);
             var hash = OriginalDllStore.Sha256(restoreDll);
             Log($"Verified restore DLL created: {restoreDll}\r\nSHA-256: {hash}");
             var panelManifest = Path.Combine(PanelBackups, "panel-backups.json");
             InstallElevated(restoreDll, "Adobe original restore",
-                File.Exists(panelManifest) ? PanelInstallAction.Restore : PanelInstallAction.None);
+                File.Exists(panelManifest) ? PanelInstallAction.Restore : PanelInstallAction.None,
+                companion: companion);
             Log("After Effects and all safely modified CEP panel files have been returned to their preserved originals.");
         });
     }

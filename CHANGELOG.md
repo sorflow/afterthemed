@@ -4,6 +4,11 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+### Fixed
+
+- After Effects 2020 now generates, installs, restores, and rolls back its native `AfterFXLib.dll` color resources together with `dvaui.dll`, so the application frame no longer stays on Adobe's default palette while the Home surface is themed.
+- Focused and selected foreground roles now retain readable contrast against accent-colored controls instead of being flattened into the same color as their background.
+
 ## 1.3.8 - 2026-08-24
 
 ### Fixed

@@ -7,6 +7,27 @@ static class Program
     {
         using var upgradeMutex = ApplicationLifetime.HoldUpgradeMutex();
 
+        if (args.Length == 6 && args[0] == "--install-theme-set-with-panel-apply")
+        {
+            var installed = ThemeFileSetInstaller.Run(args[1], args[2]);
+            if (installed != 0) return installed;
+            var manifest = ThemeFileSetStore.ReadManifest(args[1]);
+            var nativeTarget = manifest.Files.Single(file =>
+                string.Equals(Path.GetFileName(file.TargetPath), "dvaui.dll", StringComparison.OrdinalIgnoreCase));
+            return PanelThemeManager.ApplyFromConfiguration(
+                nativeTarget.TargetPath, args[3], args[4], args[5]);
+        }
+
+        if (args.Length == 5 && args[0] == "--install-theme-set-with-panel-restore")
+        {
+            var installed = ThemeFileSetInstaller.Run(args[1], args[2]);
+            if (installed != 0) return installed;
+            return PanelThemeManager.RestoreFromBackups(args[3], args[4]);
+        }
+
+        if (args.Length == 3 && args[0] == "--install-theme-set")
+            return ThemeFileSetInstaller.Run(args[1], args[2]);
+
         if (args.Length is 7 or 8 && args[0] == "--install-with-panel-apply")
         {
             var installed = RunNativeInstall(args[1], args[2], args[3],
@@ -103,6 +124,16 @@ static class Program
             ThemePatcher.Generate(args[1], args[2], ThemeSettings.HatsuneMikuAccessible, true);
             return 0;
         }
+
+        if (args.Length == 3 && args[0] == "--legacy-ae-hatsune")
+        {
+            LegacyAeThemePatcher.Generate(args[1], args[2], ThemeSettings.HatsuneMikuAccessible);
+            return 0;
+        }
+
+        if (args.Length == 4 && args[0] == "--legacy-ae-hatsune-for-dvaui")
+            return LegacyAeThemePatcher.GenerateForDvaui(
+                args[1], args[2], args[3], ThemeSettings.HatsuneMikuAccessible) is null ? 8 : 0;
         if (args.Length == 4 && args[0] == "--import-smoke")
         {
             var imported = ThemeImporter.Load(args[2]);

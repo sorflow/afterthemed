@@ -23,6 +23,10 @@ internal static class Program
             RollbackFailureRetainsBothFailuresAndTheBackupPath, failures);
         Run("rollback rejects a backup changed after verification",
             RollbackRejectsBackupChangedAfterVerification, failures);
+        Run("theme file-set rolls back its first file when the second fails",
+            ThemeFileSetRollsBackFirstFileWhenSecondFails, failures);
+        Run("theme file-set verification preserves a later panel exit",
+            ThemeFileSetVerificationPreservesLaterPanelExit, failures);
         Run("native install reports round-trip through JSON",
             NativeInstallReportsRoundTripThroughJson, failures);
         Run("a requested native install report is mandatory",
@@ -49,6 +53,8 @@ internal static class Program
             HybridSpectrumAndNativeThemeEnginesPatchTogether, failures);
         Run("legacy native color loads accept DVA register and AVX encodings",
             LegacyNativeColorLoadsAcceptDvaEncodings, failures);
+        Run("After Effects 2020 companion XML maps native semantic colors",
+            Ae2020CompanionXmlMapsNativeSemanticColors, failures);
         Run("installer upgrade guard matches the application mutex",
             InstallerUpgradeGuardMatchesApplicationMutex, failures);
 
@@ -222,6 +228,50 @@ internal static class Program
         }
     }
 
+    private static void ThemeFileSetRollsBackFirstFileWhenSecondFails()
+    {
+        var root = NewTempDirectory("file-set-rollback");
+        try
+        {
+            var backups = Path.Combine(root, "Backups");
+            var firstInput = Path.Combine(root, "AfterFXLib.generated.dll");
+            var firstTarget = Path.Combine(root, "AfterFXLib.dll");
+            var secondInput = Path.Combine(root, "dvaui.generated.dll");
+            var secondTarget = Path.Combine(root, "dvaui.dll");
+            File.WriteAllText(firstInput, "themed companion");
+            File.WriteAllText(firstTarget, "original companion");
+            File.WriteAllText(secondInput, "themed native");
+            File.WriteAllText(secondTarget, "original native");
+            var manifest = new ThemeFileSetManifest(backups,
+            [
+                new ThemeFileInstall(firstInput, firstTarget),
+                new ThemeFileInstall(secondInput, secondTarget)
+            ]);
+            var call = 0;
+
+            var report = ThemeFileSetInstaller.Install(manifest, requireAfterEffectsClosed: false, file =>
+            {
+                call++;
+                return call == 1
+                    ? NativeDllInstaller.Install(file.InputPath, file.TargetPath, backups,
+                        requireAfterEffectsClosed: false)
+                    : new NativeInstallReport(2, "simulated second install", "simulated failure");
+            });
+
+            Require(!report.Succeeded, "the failed second file was reported as a successful file set");
+            Require(File.ReadAllText(firstTarget) == "original companion",
+                "the first file was not rolled back after the second failed");
+            Require(File.ReadAllText(secondTarget) == "original native",
+                "the failed second install changed its target");
+            Require(report.Files[0].Rollback?.Succeeded == true,
+                $"the first-file rollback was not recorded: {report.Files[0].Rollback?.Message}");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static void NativeInstallReportsRoundTripThroughJson()
     {
         var root = NewTempDirectory("report-json");
@@ -235,6 +285,32 @@ internal static class Program
             var actual = NativeInstallReportStore.TryRead(reportPath);
 
             Require(actual == expected, "serialized native install report did not round-trip exactly");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void ThemeFileSetVerificationPreservesLaterPanelExit()
+    {
+        var root = NewTempDirectory("file-set-panel-exit");
+        try
+        {
+            var generated = Path.Combine(root, "dvaui.generated.dll");
+            var installed = Path.Combine(root, "dvaui.dll");
+            File.WriteAllText(generated, "themed native");
+            File.Copy(generated, installed);
+            var file = new ThemeFileInstall(generated, installed);
+            var manifest = new ThemeFileSetManifest(Path.Combine(root, "Backups"), [file]);
+            var nativeReport = new NativeInstallReport(0, "completed", "Installed and verified.",
+                ExpectedSha256: OriginalDllStore.Sha256(generated),
+                ActualSha256: OriginalDllStore.Sha256(installed));
+            var report = new ThemeFileSetReport(0, "completed", "Installed and verified 1 theme file.",
+                [new ThemeFileInstallResult(file, nativeReport)]);
+
+            ThemeFileSetVerifier.EnsureSucceeded(8, manifest, report,
+                Path.Combine(root, "theme-file-set-result.json"), "Installation");
         }
         finally
         {
@@ -545,6 +621,67 @@ internal static class Program
             "a 256-bit AVX load was incorrectly accepted as a 16-byte color reference");
         Require(ThemePatcher.RipRelativeColorLoadLength([0x0F, 0x10, 0xC0, 0, 0, 0, 0]) == 0,
             "a register-only SSE instruction was incorrectly accepted as a color reference");
+    }
+
+    private static void Ae2020CompanionXmlMapsNativeSemanticColors()
+    {
+        const string xml = """
+            <?xml version="1.0"?><ThemeColors>
+              <!-- formatting space must be reclaimable inside fixed-size PE resources -->
+              <KeyFrame name="&amp;kColor_ApplicationBackground;" v="0.10" />
+              <KeyFrame name="&amp;kColor_ContentBackground;" v="0.20" />
+              <KeyFrame name="&amp;kColor_Focus;" h="200" s="0.75" v="0.80" />
+              <KeyFrame name="&amp;kColor_StaticTextNormal;" v="0.60" />
+              <KeyFrame name="&amp;kColor_TextEditBackgroundFocused;" v="0.60" />
+              <KeyFrame name="&amp;kColor_TextEditTextFocused;" v="0.60" />
+              <KeyFrame name="&amp;kColor_ButtonSelectedInnerFillStartGradient;" v="0.60" />
+              <KeyFrame name="&amp;kColor_ButtonSelectedText;" v="0.60" />
+              <KeyFrame name="&amp;kAEColor_LabelColor_Red;" h="0" s="1" v="1" />
+            </ThemeColors>
+            """;
+
+        var rewritten = LegacyAeThemePatcher.RewriteThemeXml(
+            xml, ThemeSettings.HatsuneMikuAccessible, out var changed);
+
+        Require(changed == 8, $"expected eight native UI colors, got {changed}");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_ApplicationBackground;\" h=\"195\" s=\"0.205128\" v=\"0.152941\"",
+                StringComparison.Ordinal),
+            "the application background was not mapped to the requested background role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_ContentBackground;\" h=\"189.230769\" s=\"0.265306\" v=\"0.192157\"",
+                StringComparison.Ordinal),
+            "the content background was not mapped to the requested panel role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_Focus;\" h=\"177.5\" s=\"0.349515\" v=\"0.807843\"",
+                StringComparison.Ordinal),
+            "the focus color was not mapped to the requested primary role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_StaticTextNormal;\" h=\"208.421053\" s=\"0.090909\" v=\"0.819608\"",
+                StringComparison.Ordinal),
+            "the static text color was not mapped to the requested text role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_TextEditBackgroundFocused;\" h=\"177.5\" s=\"0.349515\" v=\"0.807843\"",
+                StringComparison.Ordinal),
+            "the focused text-edit background was not mapped to the requested primary role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_TextEditTextFocused;\" h=\"195\" s=\"0.205128\" v=\"0.152941\"",
+                StringComparison.Ordinal),
+            "focused text was flattened into its primary background instead of a contrasting foreground");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_ButtonSelectedInnerFillStartGradient;\" h=\"177.5\" s=\"0.349515\" v=\"0.807843\"",
+                StringComparison.Ordinal),
+            "the selected-button fill was not mapped to the requested primary role");
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_ButtonSelectedText;\" h=\"195\" s=\"0.205128\" v=\"0.152941\"",
+                StringComparison.Ordinal),
+            "selected-button text was flattened into its primary fill instead of a contrasting foreground");
+        Require(rewritten.Contains(
+                "name=\"&amp;kAEColor_LabelColor_Red;\" h=\"0\" s=\"1\" v=\"1\"",
+                StringComparison.Ordinal),
+            "document label colors were incorrectly rewritten as interface colors");
+        Require(!rewritten.Contains("<!--", StringComparison.Ordinal),
+            "fixed-size resource compaction did not remove formatting comments");
     }
 
     private static void HybridSpectrumAndNativeThemeEnginesPatchTogether()
