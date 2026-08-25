@@ -4,11 +4,13 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.7 - 2026-08-24
+
 ### Fixed
 
 - New installers now remove strictly older AfterThemed versions before installing, refuse accidental downgrades, verify old registration cleanup, and block upgrade/uninstall while the application is running.
 - Elevated DLL installation failures now retain their failing stage and rollback result instead of being masked as a final SHA-256 mismatch.
-- After Effects updates installed into an existing version folder now capture the new Adobe original instead of reusing a preserved original from an older DVAUI file version.
+- After Effects updates installed into an existing version folder now capture the new Adobe original, including immediately before Restore, instead of reusing a stale older or same-version DVAUI snapshot.
 - CEP panel conflicts now surface as partial failures instead of being logged as successful operations.
 - DVA 14.6's legacy `DROVER-VARS` theme resource is now recognized alongside current `DROVER-DNA-VARS` resources, with JSON array colors included in validation inventories.
 
@@ -59,5 +61,6 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.7]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.7
 [1.3.6]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.6
 [1.3.1]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.1

@@ -1,7 +1,7 @@
 #define MyAppName "AfterThemed"
 #define MyAppDisplayName "AfterThemed by Drerachi"
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.6"
+#define MyAppVersion "1.3.7"
 #endif
 #define MyAppPublisher "Drerachi"
 #define MyAppExeName "AfterThemed.exe"

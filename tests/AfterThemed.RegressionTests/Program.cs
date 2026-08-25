@@ -37,6 +37,8 @@ internal static class Program
             NewestSameVersionSnapshotWinsAfterAdobeHotfix, failures);
         Run("active snapshot provenance overrides capture recency",
             ActiveSnapshotProvenanceOverridesCaptureRecency, failures);
+        Run("restore captures a signed same-version hotfix before selecting an original",
+            RestoreCapturesSameVersionHotfixBeforeSelectingOriginal, failures);
         Run("legacy and current DROVER resource names are recognized",
             LegacyAndCurrentDroverResourceNamesAreRecognized, failures);
         Run("installer upgrade guard matches the application mutex",
@@ -409,6 +411,43 @@ internal static class Program
 
             Require(string.Equals(selected, olderActiveSnapshot, StringComparison.OrdinalIgnoreCase),
                 $"active snapshot provenance was ignored: {selected ?? "none"}");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void RestoreCapturesSameVersionHotfixBeforeSelectingOriginal()
+    {
+        var root = NewTempDirectory("restore-hotfix");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            var originals = Path.Combine(root, "Originals");
+            var restoreOutput = Path.Combine(root, "restore", "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            OriginalDllStore.AdobeSignature TrustTestFixture(string _) =>
+                new("CN=Adobe Test Fixture", "TEST-THUMBPRINT");
+
+            _ = OriginalDllStore.CaptureIfMissing(target, originals, out var initialCaptured, TrustTestFixture);
+            Require(initialCaptured, "initial test original was not captured");
+
+            using (var stream = new FileStream(target, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                stream.Position = stream.Length - 1;
+                var value = stream.ReadByte();
+                stream.Position = stream.Length - 1;
+                stream.WriteByte((byte)(value ^ 0x01));
+            }
+            var hotfixHash = OriginalDllStore.Sha256(target);
+
+            OriginalDllStore.CreateRestoreDll(target, originals, restoreOutput, TrustTestFixture);
+
+            Require(OriginalDllStore.Sha256(restoreOutput) == hotfixHash,
+                "restore selected the stale original instead of the newly installed hotfix");
+            Require(Directory.EnumerateFiles(originals, "snapshot.json", SearchOption.AllDirectories).Count() == 2,
+                "same-version hotfix was not preserved as a distinct snapshot");
         }
         finally
         {

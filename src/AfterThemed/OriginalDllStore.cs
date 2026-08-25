@@ -65,7 +65,11 @@ internal static class AfterEffectsLocator
 
 internal static class OriginalDllStore
 {
-    internal static string CaptureIfMissing(string targetPath, string originalsRoot, out bool captured)
+    internal static string CaptureIfMissing(
+        string targetPath,
+        string originalsRoot,
+        out bool captured,
+        Func<string, AdobeSignature>? signatureInspector = null)
     {
         var fullTarget = Path.GetFullPath(targetPath.Trim());
         if (!File.Exists(fullTarget)) throw new FileNotFoundException("The selected installed dvaui.dll was not found.", fullTarget);
@@ -87,7 +91,7 @@ internal static class OriginalDllStore
         {
             // A fresh Adobe update must be captured even when an older snapshot has
             // the same installation path. Path-only reuse can silently downgrade AE.
-            signature = EnsureAdobeSigned(fullTarget);
+            signature = (signatureInspector ?? EnsureAdobeSigned)(fullTarget);
         }
         catch (InvalidDataException)
         {
@@ -337,9 +341,18 @@ internal static class OriginalDllStore
             "Repair or reinstall this After Effects version through Creative Cloud, then select its fresh dvaui.dll once so AfterThemed can preserve it.");
     }
 
-    internal static string CreateRestoreDll(string targetPath, string originalsRoot, string outputPath)
+    internal static string CreateRestoreDll(
+        string targetPath,
+        string originalsRoot,
+        string outputPath,
+        Func<string, AdobeSignature>? signatureInspector = null)
     {
-        var original = RequireExistingOriginal(targetPath, originalsRoot);
+        // Creative Cloud can replace dvaui.dll while AfterThemed is already open.
+        // Re-evaluate the installed file at restore time so a newly signed hotfix
+        // is captured instead of being overwritten by an older same-version snapshot.
+        var original = File.Exists(targetPath)
+            ? CaptureIfMissing(targetPath, originalsRoot, out _, signatureInspector)
+            : RequireExistingOriginal(targetPath, originalsRoot);
         var fullOutput = Path.GetFullPath(outputPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullOutput)!);
         var temporary = fullOutput + $".{Guid.NewGuid():N}.tmp";
@@ -349,7 +362,8 @@ internal static class OriginalDllStore
             if (!string.Equals(Sha256(original), Sha256(temporary), StringComparison.Ordinal))
                 throw new IOException("The restore DLL did not match the preserved Adobe original.");
             File.Move(temporary, fullOutput, true);
-            ValidateSnapshot(fullOutput, Path.Combine(Path.GetDirectoryName(original)!, "snapshot.json"));
+            ValidateSnapshot(fullOutput, Path.Combine(Path.GetDirectoryName(original)!, "snapshot.json"),
+                signatureInspector: signatureInspector);
             return fullOutput;
         }
         finally
@@ -373,10 +387,14 @@ internal static class OriginalDllStore
         return Convert.ToHexString(SHA256.HashData(stream));
     }
 
-    private static void ValidateSnapshot(string originalPath, string metadataPath, bool requireAdobeSignature = true)
+    private static void ValidateSnapshot(
+        string originalPath,
+        string metadataPath,
+        bool requireAdobeSignature = true,
+        Func<string, AdobeSignature>? signatureInspector = null)
     {
         EnsurePortableExecutable(originalPath);
-        if (requireAdobeSignature) EnsureAdobeSigned(originalPath);
+        if (requireAdobeSignature) (signatureInspector ?? EnsureAdobeSigned)(originalPath);
         if (!File.Exists(metadataPath))
             throw new InvalidDataException("The preserved original is missing its verification metadata.");
 
@@ -444,7 +462,7 @@ internal static class OriginalDllStore
             "theme, or restore it as an original. Repair this After Effects version in Creative Cloud, then " +
             $"select the fresh Adobe-signed dvaui.dll. {detail}", inner);
 
-    private sealed record AdobeSignature(string Subject, string Thumbprint);
+    internal sealed record AdobeSignature(string Subject, string Thumbprint);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct WinTrustFileInfo
