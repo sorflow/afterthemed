@@ -4,6 +4,8 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.9 - 2026-08-24
+
 ### Fixed
 
 - After Effects 2020 now generates, installs, restores, and rolls back its native `AfterFXLib.dll` color resources together with `dvaui.dll`, so the application frame no longer stays on Adobe's default palette while the Home surface is themed.
@@ -74,6 +76,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.9]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.9
 [1.3.8]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.8
 [1.3.7]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.7
 [1.3.6]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.6
