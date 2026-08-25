@@ -1,0 +1,157 @@
+AFTERTHEMED END USER LICENSE AGREEMENT
+EULA Version 1.0
+Effective Date: August 24, 2026
+
+Copyright (c) 2026 Drerachi. All rights reserved.
+
+IMPORTANT: READ THIS AGREEMENT CAREFULLY BEFORE INSTALLING OR USING AFTERTHEMED.
+
+This End User License Agreement ("Agreement") is a legal agreement between you ("User" or "you") and Drerachi, the creator and publisher of AfterThemed ("Licensor"), for the AfterThemed application, installer, documentation, original branding, and related files supplied by Licensor (collectively, the "Software").
+
+BY SELECTING "I ACCEPT," INSTALLING, COPYING, OR USING THE SOFTWARE, YOU CONFIRM THAT YOU HAVE READ, UNDERSTOOD, AND AGREED TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+
+1. LICENSE GRANT
+
+Subject to this Agreement, Licensor grants you a limited, personal, non-exclusive, non-transferable, non-sublicensable, and revocable license to install and use the Software on Windows devices that you own or control, solely for lawful personal or internal business purposes.
+
+The Software is licensed, not sold. No ownership rights are transferred to you.
+
+2. PURPOSE AND OPERATION
+
+The Software is an independent customization utility designed to help users create, preview, apply, back up, and restore interface theme changes. Its features may inspect or modify local files selected or authorized by you, including DVAUI resources, HTML, CSS, CEP extension files, ScriptUI-related resources, font references, configuration files, and backups.
+
+You control whether these operations are performed. You are responsible for reviewing the selected paths, previews, detected extensions, generated files, and backup status before applying any change.
+
+3. USER RESPONSIBILITIES
+
+You agree that you will:
+
+(a) use the Software only with software, files, extensions, fonts, and systems that you lawfully own, license, administer, or have permission to modify;
+
+(b) maintain valid licenses for Adobe products and all other third-party products used with the Software;
+
+(c) comply with all applicable contracts, product terms, extension licenses, font licenses, laws, regulations, and workplace policies;
+
+(d) preserve adequate external backups before modifying production files or software installations;
+
+(e) review generated output before deployment; and
+
+(f) not use the Software to bypass licensing, access controls, signatures, security protections, payment requirements, or technical restrictions.
+
+4. ADOBE AND THIRD-PARTY MATERIALS
+
+AfterThemed is an independent product. It is not affiliated with, sponsored by, authorized by, certified by, or endorsed by Adobe Inc.
+
+Adobe, Adobe After Effects, Creative Cloud, and related names are trademarks or registered trademarks of Adobe Inc. All other trademarks are the property of their respective owners.
+
+The Software does not include, sell, sublicense, or transfer ownership of Adobe software, dvaui.dll, Adobe fonts, Adobe artwork, Adobe product icons, or third-party extensions. This Agreement grants no rights in any Adobe or third-party material.
+
+Permission to use AfterThemed does not constitute permission to modify Adobe software or any third-party extension. You are solely responsible for determining whether your intended use is allowed by the applicable product terms and law. Where local law provides non-waivable interoperability or reverse-engineering rights, you remain responsible for satisfying all requirements and limitations of those rights.
+
+5. CEP EXTENSIONS, SCRIPTUI PANELS, FONTS, AND THEMES
+
+Third-party CEP extensions, ScriptUI panels, fonts, themes, presets, and related content remain subject to their own licenses. You may use AfterThemed to modify such content only when you have the necessary rights or permission. Licensor does not grant permission on behalf of any third-party author, publisher, employer, or platform provider.
+
+You are responsible for any compatibility, readability, accessibility, security, signature, update, or support consequences caused by customizing third-party content.
+
+6. BACKUPS AND RESTORATION
+
+The Software includes backup and restoration safeguards intended to reduce risk. These safeguards are not a substitute for your own verified backups. Restoration may fail because of interrupted operations, permissions, antivirus actions, disk errors, product updates, missing files, incompatible versions, external modification, or other circumstances outside Licensor's control.
+
+You must verify important backups before relying on them. Licensor is not a data-storage or disaster-recovery provider.
+
+7. RESTRICTIONS
+
+Except where applicable law expressly prohibits a restriction, you may not:
+
+(a) copy or redistribute the Software except for one reasonable archival backup;
+
+(b) sell, rent, lease, sublicense, publish, host, share, or commercially distribute the Software without Licensor's prior written permission;
+
+(c) modify, adapt, translate, reverse engineer, decompile, disassemble, or attempt to derive the source code or internal design of the Software;
+
+(d) remove or alter copyright, trademark, attribution, license, or proprietary notices;
+
+(e) use the AfterThemed name, logo, visual identity, or confusingly similar branding for another product or service;
+
+(f) misrepresent the Software as an official Adobe product or imply an endorsement that does not exist;
+
+(g) use the Software for unlawful, malicious, deceptive, infringing, or unauthorized activity; or
+
+(h) distribute generated or modified copies of proprietary files unless you independently have the right to do so.
+
+8. OWNERSHIP AND RESERVED RIGHTS
+
+Licensor retains all right, title, and interest in the Software, including its original source and object code, interface design, documentation, text, compilation, AfterThemed name, and original logo, subject to any rights held by third parties in separately licensed components.
+
+All rights not expressly granted by this Agreement are reserved. No license to any patent, trademark, trade dress, or other branding right is granted except the limited right necessary to identify and run an authorized copy of the Software.
+
+9. THIRD-PARTY COMPONENTS
+
+The Software may incorporate or be distributed with components governed by separate license terms, including Microsoft .NET runtime components. Those components remain subject to their respective notices and licenses. To the extent a third-party license conflicts with this Agreement for that third-party component, the third-party license controls for that component only.
+
+10. PRIVACY AND EXTERNAL LINKS
+
+As of the Effective Date, the Software has no built-in user account, advertising, analytics, or telemetry service and does not intentionally transmit your DLL files, theme files, installed-font inventory, extension contents, or local file paths to Licensor.
+
+The Software contains optional links that open external websites in your default browser. Those websites operate under their own privacy policies and terms. Your operating system, browser, security software, Adobe products, and installed extensions may independently process data outside the Software.
+
+11. UPDATES AND COMPATIBILITY
+
+Licensor may provide updates, revisions, or replacement versions at Licensor's discretion, but has no obligation to do so. Updates may add, change, or remove features and may be governed by an updated agreement presented before installation or use.
+
+Adobe products, Windows, fonts, extensions, and file formats may change without notice. Licensor does not guarantee compatibility with any particular current or future version.
+
+12. SUPPORT
+
+No maintenance, technical support, compatibility service, or response time is promised unless Licensor separately agrees in writing. Community messages, social-media responses, documentation, and informal assistance do not create a support obligation or warranty.
+
+13. TERMINATION
+
+This Agreement remains effective until terminated. Your rights terminate automatically if you materially breach this Agreement. Upon termination, you must stop using and delete all copies of the Software under your control, except records that applicable law requires you to retain.
+
+Sections concerning ownership, restrictions, disclaimers, limitations of liability, third-party rights, and miscellaneous terms survive termination.
+
+14. DISCLAIMER OF WARRANTIES
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITH ALL FAULTS AND WITHOUT WARRANTIES OF ANY KIND. LICENSOR DISCLAIMS ALL EXPRESS, IMPLIED, AND STATUTORY WARRANTIES, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, QUIET ENJOYMENT, COMPATIBILITY, SECURITY, AND ERROR-FREE OR UNINTERRUPTED OPERATION.
+
+LICENSOR DOES NOT WARRANT THAT A THEME WILL BE READABLE, ACCESSIBLE, COMPATIBLE, RESTORABLE, ACCEPTED BY A THIRD PARTY, OR UNAFFECTED BY FUTURE SOFTWARE UPDATES.
+
+Some jurisdictions do not allow certain warranty exclusions. In those jurisdictions, these exclusions apply only to the extent legally permitted, and mandatory consumer rights remain unaffected.
+
+15. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, LICENSOR WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE, OR CONSEQUENTIAL DAMAGES; LOSS OF DATA, FILES, THEMES, EXTENSIONS, FONTS, PROFITS, REVENUE, BUSINESS, GOODWILL, OR PRODUCTIVITY; SOFTWARE DOWNTIME; REINSTALLATION COSTS; OR CLAIMS BY THIRD PARTIES ARISING FROM OR RELATED TO THE SOFTWARE, EVEN IF LICENSOR WAS ADVISED THAT SUCH DAMAGE WAS POSSIBLE.
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, LICENSOR'S TOTAL AGGREGATE LIABILITY ARISING FROM OR RELATED TO THE SOFTWARE WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID DIRECTLY TO LICENSOR FOR THE SOFTWARE DURING THE TWELVE MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM OR (B) TEN U.S. DOLLARS (US $10.00).
+
+Nothing in this Agreement excludes liability that cannot legally be excluded or limited.
+
+16. INDEMNITY
+
+To the extent permitted by law, you agree to defend, indemnify, and hold Licensor harmless from third-party claims, damages, and reasonable costs arising from your unlawful use of the Software, your unauthorized modification or distribution of third-party material, or your violation of another party's license or intellectual-property rights. This section does not apply where prohibited by mandatory consumer law.
+
+17. EXPORT AND SANCTIONS COMPLIANCE
+
+You may not use, export, re-export, or transfer the Software in violation of applicable export-control, sanctions, or trade laws.
+
+18. GOVERNING RULES AND DISPUTES
+
+This Agreement is governed by the laws applicable where Licensor is legally established, without regard to conflict-of-law principles, except that mandatory consumer protections in your place of residence continue to apply. Before filing a claim, each party agrees to make a reasonable good-faith effort to resolve the dispute informally.
+
+Nothing in this section prevents either party from seeking emergency relief to protect intellectual-property rights or from using a small-claims procedure where legally available. Any venue or dispute term applies only to the extent permitted by applicable law.
+
+19. GENERAL TERMS
+
+This Agreement is the entire agreement between you and Licensor concerning the Software unless a separate written agreement signed by Licensor applies. If any provision is unenforceable, it will be enforced to the maximum extent permitted and the remaining provisions will continue in effect. Failure to enforce a provision is not a waiver. You may not assign this Agreement without Licensor's prior written permission. Licensor may assign it as part of a transfer of the Software or related business.
+
+Headings are for convenience only. The English version controls to the extent permitted by law.
+
+20. CONTACT
+
+Questions about licensing or permissions should be directed through the official AfterThemed distribution channel or project page maintained by Drerachi.
+
+AFTERTHEMED IS INDEPENDENT SOFTWARE AND IS NOT AN ADOBE PRODUCT.
+
+

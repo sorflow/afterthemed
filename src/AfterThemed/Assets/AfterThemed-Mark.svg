@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title description">
+  <title id="title">AfterThemed mark</title>
+  <desc id="description">An angular letter A with a cyan-to-violet gradient on a dark rounded square.</desc>
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#193641"/>
+      <stop offset="1" stop-color="#081820"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#5CC6FA"/>
+      <stop offset="0.52" stop-color="#1DACF3"/>
+      <stop offset="1" stop-color="#B07DFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="152" height="152" rx="26" fill="url(#plate)" stroke="#456573"/>
+  <path d="M25 125 67 35h17l-32 90H25Z" fill="url(#mark)"/>
+  <path d="M77 35h17l43 90h-28L77 35Z" fill="url(#mark)"/>
+  <path d="M51 84h58l11 22H41l10-22Z" fill="url(#mark)"/>
+  <circle cx="132" cy="31" r="7" fill="#1DACF3"/>
+  <path d="m32 120 40-82" fill="none" stroke="#fff" stroke-opacity=".38"/>
+</svg>

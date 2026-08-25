@@ -1,0 +1,92 @@
+name: Bug report
+description: Report a reproducible problem in AfterThemed
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach Adobe DLLs, licensed extensions, font files, or personal paths. Report security issues privately through SECURITY.md.
+
+  - type: input
+    id: afterthemed-version
+    attributes:
+      label: AfterThemed version
+      placeholder: 1.3.5
+    validations:
+      required: true
+
+  - type: input
+    id: after-effects-version
+    attributes:
+      label: Adobe After Effects version
+      placeholder: 25.6.0
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - DVAUI colors
+        - Font replacement
+        - CEP panel theming
+        - ScriptUI discovery
+        - Backup or restore
+        - Installer or update
+        - Application interface
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use a clean or disposable test target where possible.
+      placeholder: |
+        1. Select ...
+        2. Apply ...
+        3. Restart ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Paste relevant AfterThemed log text or hashes. Remove usernames and local paths.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I tested the latest release.
+          required: true
+        - label: I removed proprietary files and personal information from this report.
+          required: true

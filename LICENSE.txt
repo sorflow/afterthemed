@@ -1,0 +1,18 @@
+AFTERTHEMED PROPRIETARY SOFTWARE LICENSE NOTICE
+
+Copyright (c) 2026 Drerachi. All rights reserved.
+
+AfterThemed is proprietary software. No permission is granted to copy, modify,
+redistribute, sublicense, sell, publish, reverse engineer, or create derivative
+works from this software except as expressly provided by the accompanying
+AfterThemed End User License Agreement or by a separate written agreement
+signed by the copyright owner.
+
+Authorized end-user use is governed by EULA.txt.
+
+This notice applies only to original AfterThemed material. It does not claim or
+grant rights in Adobe software, dvaui.dll, Adobe trademarks, third-party CEP or
+ScriptUI extensions, fonts, themes, Microsoft .NET components, or other
+separately licensed material.
+
+

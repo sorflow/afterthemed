@@ -1,0 +1,35 @@
+# IDE and local state
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+
+# .NET output
+**/bin/
+**/obj/
+**/artifacts/
+*.pdb
+*.nupkg
+
+# Release binaries belong in GitHub Releases
+dist/
+*.exe
+*.dll
+*.msi
+*.zip
+
+# Local AfterThemed and analysis data
+Backups/
+Originals/
+Variants/
+Reports/
+PanelBackups/
+_analysis/
+prototypes/
+*.bundle
+*.log
+
+# Operating-system files
+Thumbs.db
+.DS_Store

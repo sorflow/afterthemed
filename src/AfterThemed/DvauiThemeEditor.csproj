@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DVAUI Theme Editor</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AfterThemed-AppIcon.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Version>1.3.5</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\AfterThemed-Mark.svg" />
+    <EmbeddedResource Include="Assets\AfterThemed-Mark.svg" LogicalName="DvauiThemeEditor.Assets.AfterThemed-Mark.svg" />
+    <None Include="..\..\EULA.txt" Link="EULA.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\LICENSE.txt" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

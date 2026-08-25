@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reject committed binaries
+        shell: pwsh
+        run: |
+          $blocked = @(git ls-files -- '*.exe' '*.dll' '*.msi')
+          if ($blocked.Count -gt 0) {
+            $blocked | ForEach-Object { Write-Error "Compiled binary is tracked: $_" }
+            throw 'Compiled binaries must be published through GitHub Releases, not committed.'
+          }
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore .\src\AfterThemed\DvauiThemeEditor.csproj
+
+      - name: Build
+        run: dotnet build .\src\AfterThemed\DvauiThemeEditor.csproj --configuration Release --no-restore
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress --limit-output
+
+      - name: Build installer
+        shell: pwsh
+        run: .\src\AfterThemed\Installer\Build-Installer.ps1
+
+      - name: Upload unsigned build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AfterThemed-windows-x64
+          path: |
+            src/AfterThemed/artifacts/installer/AfterThemed-Setup-*.exe
+            EULA.txt
+            LICENSE.txt
+          if-no-files-found: error
+          retention-days: 14
