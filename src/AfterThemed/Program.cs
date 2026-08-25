@@ -5,17 +5,21 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        if (args.Length == 7 && args[0] == "--install-with-panel-apply")
+        using var upgradeMutex = ApplicationLifetime.HoldUpgradeMutex();
+
+        if (args.Length is 7 or 8 && args[0] == "--install-with-panel-apply")
         {
-            var installed = Install(args[1], args[2], args[3]);
+            var installed = RunNativeInstall(args[1], args[2], args[3],
+                args.Length == 8 ? args[7] : null);
             return installed == 0
                 ? PanelThemeManager.ApplyFromConfiguration(args[2], args[4], args[5], args[6])
                 : installed;
         }
 
-        if (args.Length == 6 && args[0] == "--install-with-panel-restore")
+        if (args.Length is 6 or 7 && args[0] == "--install-with-panel-restore")
         {
-            var installed = Install(args[1], args[2], args[3]);
+            var installed = RunNativeInstall(args[1], args[2], args[3],
+                args.Length == 7 ? args[6] : null);
             return installed == 0 ? PanelThemeManager.RestoreFromBackups(args[4], args[5]) : installed;
         }
 
@@ -69,11 +73,12 @@ static class Program
             return 0;
         }
 
-        if (args.Length == 4 && args[0] == "--install")
-            return Install(args[1], args[2], args[3]);
+        if (args.Length is 4 or 5 && args[0] == "--install")
+            return RunNativeInstall(args[1], args[2], args[3], args.Length == 5 ? args[4] : null);
 
-        if (args.Length == 4 && args[0] == "--install-smoke")
-            return Install(args[1], args[2], args[3], requireAfterEffectsClosed: false);
+        if (args.Length is 4 or 5 && args[0] == "--install-smoke")
+            return NativeDllInstallCommand.Run(args[1], args[2], args[3],
+                args.Length == 5 ? args[4] : null, requireAfterEffectsClosed: false);
 
         if (args.Length == 3 && args[0] == "--smoke")
         {
@@ -156,57 +161,6 @@ static class Program
         return null;
     }
 
-    private static int Install(string source, string target, string backupDirectory, bool requireAfterEffectsClosed = true)
-    {
-        string? temporaryPath = null;
-        string? backupPath = null;
-        try
-        {
-            if (requireAfterEffectsClosed && System.Diagnostics.Process.GetProcessesByName("AfterFX").Length > 0)
-                return 3;
-
-            source = Path.GetFullPath(source);
-            target = Path.GetFullPath(target);
-            if (!File.Exists(source) || !File.Exists(target))
-                return 2;
-
-            var expectedHash = OriginalDllStore.Sha256(source);
-            Directory.CreateDirectory(backupDirectory);
-            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-            backupPath = Path.Combine(backupDirectory, $"dvaui-{stamp}.dll");
-            File.Copy(target, backupPath, false);
-            if (!string.Equals(OriginalDllStore.Sha256(target), OriginalDllStore.Sha256(backupPath), StringComparison.Ordinal))
-                return 2;
-
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            temporaryPath = Path.Combine(Path.GetDirectoryName(target)!, $"dvaui.afterthemed-{Guid.NewGuid():N}.tmp");
-            File.Copy(source, temporaryPath, false);
-            if (!string.Equals(expectedHash, OriginalDllStore.Sha256(temporaryPath), StringComparison.Ordinal))
-                return 2;
-
-            File.Move(temporaryPath, target, true);
-            temporaryPath = null;
-            if (!string.Equals(expectedHash, OriginalDllStore.Sha256(target), StringComparison.Ordinal))
-            {
-                File.Copy(backupPath, target, true);
-                return 2;
-            }
-            return 0;
-        }
-        catch
-        {
-            if (backupPath is not null && File.Exists(backupPath) && File.Exists(target))
-            {
-                try { File.Copy(backupPath, target, true); } catch { /* Preserve the original failure code. */ }
-            }
-            return 2;
-        }
-        finally
-        {
-            if (temporaryPath is not null && File.Exists(temporaryPath))
-            {
-                try { File.Delete(temporaryPath); } catch { /* Best-effort cleanup of a staging file. */ }
-            }
-        }
-    }
+    private static int RunNativeInstall(string source, string target, string backupDirectory, string? reportPath)
+        => NativeDllInstallCommand.Run(source, target, backupDirectory, reportPath);
 }

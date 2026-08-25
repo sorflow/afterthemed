@@ -40,6 +40,9 @@ jobs:
       - name: Build
         run: dotnet build .\src\AfterThemed\DvauiThemeEditor.csproj --configuration Release --no-restore
 
+      - name: Run regression tests
+        run: dotnet run --project .\tests\AfterThemed.RegressionTests\AfterThemed.RegressionTests.csproj --configuration Release
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress --limit-output
@@ -47,6 +50,10 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: .\src\AfterThemed\Installer\Build-Installer.ps1
+
+      - name: Verify previous-version upgrade
+        shell: pwsh
+        run: .\tests\InstallerUpgrade.Integration.ps1 -InnoCompiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
       - name: Upload unsigned build artifact
         uses: actions/upload-artifact@v4

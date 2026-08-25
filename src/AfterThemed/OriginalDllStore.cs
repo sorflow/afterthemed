@@ -71,19 +71,38 @@ internal static class OriginalDllStore
         if (!File.Exists(fullTarget)) throw new FileNotFoundException("The selected installed dvaui.dll was not found.", fullTarget);
         EnsurePortableExecutable(fullTarget);
 
-        // Existing snapshots from pre-signature-check builds remain usable as
-        // generation baselines when their recorded SHA-256 still matches. New
-        // captures must still be Adobe-signed, and Restore remains strict.
-        var existing = ExistingFor(fullTarget, originalsRoot, requireAdobeSignature: false);
+        // Reuse an exact snapshot before checking the current target's signature.
+        // This keeps snapshots from pre-signature-check builds usable when their
+        // recorded SHA-256 still matches the selected file byte-for-byte.
+        var existing = ExistingExactFor(fullTarget, originalsRoot, requireAdobeSignature: false);
         if (existing is not null)
         {
+            MarkActiveSnapshot(fullTarget, originalsRoot, existing);
             captured = false;
             return existing;
         }
 
-        // A themed target is expected to have an invalid Adobe signature, but it is
-        // safe only when a separately verified original already exists for its path.
-        var signature = EnsureAdobeSigned(fullTarget);
+        AdobeSignature signature;
+        try
+        {
+            // A fresh Adobe update must be captured even when an older snapshot has
+            // the same installation path. Path-only reuse can silently downgrade AE.
+            signature = EnsureAdobeSigned(fullTarget);
+        }
+        catch (InvalidDataException)
+        {
+            // A themed target is expected to have an invalid Adobe signature. It is
+            // safe only when a verified original for the same path and file version
+            // already exists.
+            existing = ExistingFor(fullTarget, originalsRoot, requireAdobeSignature: false);
+            if (existing is not null)
+            {
+                MarkActiveSnapshot(fullTarget, originalsRoot, existing);
+                captured = false;
+                return existing;
+            }
+            throw;
+        }
 
         var key = PathKey(fullTarget);
         var snapshotDirectory = Path.Combine(originalsRoot, key);
@@ -93,6 +112,7 @@ internal static class OriginalDllStore
         if (File.Exists(originalPath))
         {
             ValidateSnapshot(originalPath, Path.Combine(snapshotDirectory, "snapshot.json"));
+            MarkActiveSnapshot(fullTarget, originalsRoot, originalPath);
             captured = false;
             return originalPath;
         }
@@ -129,6 +149,7 @@ internal static class OriginalDllStore
             };
             File.WriteAllText(Path.Combine(snapshotDirectory, "snapshot.json"),
                 JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+            MarkActiveSnapshot(fullTarget, originalsRoot, originalPath);
             captured = true;
             return originalPath;
         }
@@ -142,26 +163,13 @@ internal static class OriginalDllStore
     {
         if (string.IsNullOrWhiteSpace(targetPath)) return null;
         var fullTarget = Path.GetFullPath(targetPath.Trim());
-        if (File.Exists(fullTarget))
-        {
-            var directDirectory = Path.Combine(originalsRoot, PathKey(fullTarget));
-            var direct = Path.Combine(directDirectory, "dvaui.dll.adobe-original");
-            if (File.Exists(direct))
-            {
-                try
-                {
-                    ValidateSnapshot(direct, Path.Combine(directDirectory, "snapshot.json"), requireAdobeSignature);
-                    return direct;
-                }
-                catch (InvalidDataException)
-                {
-                    // A stale snapshot captured by an older AfterThemed build must not
-                    // prevent a repaired, Adobe-signed DLL from getting a clean snapshot.
-                }
-            }
-        }
+        var exact = ExistingExactFor(fullTarget, originalsRoot, requireAdobeSignature);
+        if (exact is not null) return exact;
+        var active = ExistingActiveFor(fullTarget, originalsRoot, requireAdobeSignature);
+        if (active is not null) return active;
 
         if (!Directory.Exists(originalsRoot)) return null;
+        var historical = new List<HistoricalSnapshot>();
         foreach (var metadataPath in Directory.EnumerateFiles(originalsRoot, "snapshot.json", SearchOption.AllDirectories))
         {
             try
@@ -174,8 +182,16 @@ internal static class OriginalDllStore
 
                 var candidate = Path.Combine(Path.GetDirectoryName(metadataPath)!, "dvaui.dll.adobe-original");
                 if (!File.Exists(candidate)) continue;
+                if (File.Exists(fullTarget) && !HaveSameFileVersion(candidate, fullTarget)) continue;
                 ValidateSnapshot(candidate, metadataPath, requireAdobeSignature);
-                return candidate;
+                var capturedAt = document.RootElement.TryGetProperty("CapturedAtUtc", out var capturedElement) &&
+                                 capturedElement.TryGetDateTimeOffset(out var parsedCapturedAt)
+                    ? parsedCapturedAt
+                    : DateTimeOffset.MinValue;
+                var hash = document.RootElement.TryGetProperty("Sha256", out var hashElement)
+                    ? hashElement.GetString() ?? Sha256(candidate)
+                    : Sha256(candidate);
+                historical.Add(new HistoricalSnapshot(candidate, capturedAt, hash));
             }
             catch (JsonException)
             {
@@ -191,7 +207,126 @@ internal static class OriginalDllStore
             }
         }
 
-        return null;
+        if (historical.Count == 0) return null;
+        var newestTimestamp = historical.Max(snapshot => snapshot.CapturedAtUtc);
+        var newest = historical.Where(snapshot => snapshot.CapturedAtUtc == newestTimestamp).ToArray();
+        if (newest.Select(snapshot => snapshot.Sha256).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            return null;
+        return newest.OrderBy(snapshot => snapshot.Path, StringComparer.OrdinalIgnoreCase).First().Path;
+    }
+
+    private sealed record HistoricalSnapshot(string Path, DateTimeOffset CapturedAtUtc, string Sha256);
+
+    internal static void MarkActiveSnapshot(string targetPath, string originalsRoot, string originalPath)
+    {
+        var fullTarget = Path.GetFullPath(targetPath.Trim());
+        var fullRoot = Path.GetFullPath(originalsRoot).TrimEnd(Path.DirectorySeparatorChar);
+        var fullOriginal = Path.GetFullPath(originalPath);
+        if (!IsWithinRoot(fullOriginal, fullRoot))
+            throw new InvalidOperationException("The active original snapshot is outside the originals store.");
+
+        var activeDirectory = Path.Combine(fullRoot, "_active");
+        Directory.CreateDirectory(activeDirectory);
+        var pointerPath = Path.Combine(activeDirectory, $"{TargetPathKey(fullTarget)}.json");
+        var temporaryPath = pointerPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            var metadata = new
+            {
+                TargetPath = fullTarget,
+                SnapshotRelativePath = Path.GetRelativePath(fullRoot, fullOriginal),
+                Sha256 = Sha256(fullOriginal),
+                FileVersion = FileVersionInfo.GetVersionInfo(fullOriginal).FileVersion,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            File.WriteAllText(temporaryPath,
+                JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(temporaryPath, pointerPath, true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    private static string? ExistingActiveFor(string fullTarget, string originalsRoot, bool requireAdobeSignature)
+    {
+        try
+        {
+            var fullRoot = Path.GetFullPath(originalsRoot).TrimEnd(Path.DirectorySeparatorChar);
+            var pointerPath = Path.Combine(fullRoot, "_active", $"{TargetPathKey(fullTarget)}.json");
+            if (!File.Exists(pointerPath)) return null;
+            using var document = JsonDocument.Parse(File.ReadAllText(pointerPath));
+            if (!document.RootElement.TryGetProperty("TargetPath", out var storedTarget) ||
+                !string.Equals(Path.GetFullPath(storedTarget.GetString() ?? string.Empty), fullTarget,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !document.RootElement.TryGetProperty("SnapshotRelativePath", out var relativeElement))
+                return null;
+
+            var candidate = Path.GetFullPath(Path.Combine(fullRoot, relativeElement.GetString() ?? string.Empty));
+            if (!IsWithinRoot(candidate, fullRoot) || !File.Exists(candidate)) return null;
+            if (File.Exists(fullTarget) && !HaveSameFileVersion(candidate, fullTarget)) return null;
+            ValidateSnapshot(candidate, Path.Combine(Path.GetDirectoryName(candidate)!, "snapshot.json"),
+                requireAdobeSignature);
+            if (!document.RootElement.TryGetProperty("Sha256", out var expectedHash) ||
+                !string.Equals(expectedHash.GetString(), Sha256(candidate), StringComparison.OrdinalIgnoreCase))
+                return null;
+            return candidate;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsWithinRoot(string path, string root) =>
+        path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    private static string TargetPathKey(string path)
+    {
+        var normalized = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))[..16];
+    }
+
+    private static string? ExistingExactFor(string fullTarget, string originalsRoot, bool requireAdobeSignature)
+    {
+        if (!File.Exists(fullTarget)) return null;
+        var directDirectory = Path.Combine(originalsRoot, PathKey(fullTarget));
+        var direct = Path.Combine(directDirectory, "dvaui.dll.adobe-original");
+        if (!File.Exists(direct)) return null;
+        try
+        {
+            ValidateSnapshot(direct, Path.Combine(directDirectory, "snapshot.json"), requireAdobeSignature);
+            return direct;
+        }
+        catch (InvalidDataException)
+        {
+            // A stale snapshot captured by an older AfterThemed build must not
+            // prevent a repaired, Adobe-signed DLL from getting a clean snapshot.
+            return null;
+        }
+    }
+
+    private static bool HaveSameFileVersion(string leftPath, string rightPath)
+    {
+        var left = FileVersionInfo.GetVersionInfo(leftPath);
+        var right = FileVersionInfo.GetVersionInfo(rightPath);
+        return left.FileMajorPart == right.FileMajorPart &&
+               left.FileMinorPart == right.FileMinorPart &&
+               left.FileBuildPart == right.FileBuildPart &&
+               left.FilePrivatePart == right.FilePrivatePart;
     }
 
     internal static string RequireExistingOriginal(string targetPath, string originalsRoot)

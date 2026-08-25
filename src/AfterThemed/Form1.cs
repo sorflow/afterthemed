@@ -705,30 +705,35 @@ public partial class Form1 : Form
     private void InstallElevated(string input, string operation, PanelInstallAction panelAction = PanelInstallAction.None,
         string? panelConfiguration = null)
     {
+        var nativeInstallReportFile = Path.Combine(Reports,
+            $"native-install-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.json");
         var arguments = panelAction switch
         {
-            PanelInstallAction.Apply => $"--install-with-panel-apply {Quote(input)} {Quote(target.Text)} {Quote(Backups)} {Quote(PanelBackups)} {Quote(panelConfiguration!)} {Quote(PanelReportFile)}",
-            PanelInstallAction.Restore => $"--install-with-panel-restore {Quote(input)} {Quote(target.Text)} {Quote(Backups)} {Quote(PanelBackups)} {Quote(PanelReportFile)}",
-            _ => $"--install {Quote(input)} {Quote(target.Text)} {Quote(Backups)}"
+            PanelInstallAction.Apply => $"--install-with-panel-apply {Quote(input)} {Quote(target.Text)} {Quote(Backups)} {Quote(PanelBackups)} {Quote(panelConfiguration!)} {Quote(PanelReportFile)} {Quote(nativeInstallReportFile)}",
+            PanelInstallAction.Restore => $"--install-with-panel-restore {Quote(input)} {Quote(target.Text)} {Quote(Backups)} {Quote(PanelBackups)} {Quote(PanelReportFile)} {Quote(nativeInstallReportFile)}",
+            _ => $"--install {Quote(input)} {Quote(target.Text)} {Quote(Backups)} {Quote(nativeInstallReportFile)}"
         };
         if (panelAction != PanelInstallAction.None && File.Exists(PanelReportFile)) File.Delete(PanelReportFile);
         var psi = new ProcessStartInfo { FileName = Environment.ProcessPath!, UseShellExecute = true, Verb = "runas", Arguments = arguments };
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start the elevated installer.");
         process.WaitForExit();
-        if (process.ExitCode == 3) throw new InvalidOperationException("After Effects is running. Close it and try again.");
-        if (!string.Equals(OriginalDllStore.Sha256(input), OriginalDllStore.Sha256(target.Text.Trim()), StringComparison.Ordinal))
-            throw new IOException($"{operation} did not pass final SHA-256 verification.");
+        var nativeReport = NativeInstallReportStore.TryRead(nativeInstallReportFile);
+        NativeInstallVerifier.EnsureNativeInstallSucceeded(process.ExitCode, input, target.Text, operation,
+            nativeReport, nativeInstallReportFile);
         if (panelAction != PanelInstallAction.None)
         {
             if (!File.Exists(PanelReportFile))
                 throw new InvalidOperationException($"{operation} installed the DLL, but the panel operation did not return a report.");
             LogPanelReport(JsonSerializer.Deserialize<PanelOperationReport>(File.ReadAllText(PanelReportFile)));
-            if (process.ExitCode == 2)
-                throw new InvalidOperationException($"{operation} installed the DLL, but the panel operation failed. See the activity log.");
+            if (process.ExitCode == 8)
+                throw new InvalidOperationException($"{operation} installed the DLL, but one or more panel files had conflicts and were left unchanged. See the activity log.");
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"{operation} installed the DLL, but the panel operation failed (exit code {process.ExitCode}). See the activity log.");
         }
         else if (process.ExitCode != 0)
             throw new InvalidOperationException($"{operation} failed or was cancelled.");
         Log($"{operation} completed. A timestamped backup was saved in {Backups}.");
+        try { File.Delete(nativeInstallReportFile); } catch { /* Keep a harmless success report if cleanup is blocked. */ }
     }
 
     private void Inventory()
@@ -1095,7 +1100,10 @@ public partial class Form1 : Form
             if (!File.Exists(PanelReportFile)) throw new InvalidOperationException("The panel modifier did not return a report.");
             var report = JsonSerializer.Deserialize<PanelOperationReport>(File.ReadAllText(PanelReportFile));
             LogPanelReport(report);
-            if (process.ExitCode == 2) throw new InvalidOperationException("Panel theming failed. See the activity log.");
+            if (process.ExitCode == 8)
+                throw new InvalidOperationException("Panel theming completed with conflicts; affected files were left unchanged. See the activity log.");
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"Panel theming failed (exit code {process.ExitCode}). See the activity log.");
             RefreshPanelDiscovery();
         });
     }

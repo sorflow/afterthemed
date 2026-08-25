@@ -271,13 +271,17 @@ public static class ThemePatcher
         var rgb = Encoding.ASCII.GetBytes("rgb(");
         return pe.Resources()
             .Where(resource => string.Equals(resource.Type, "JSON", StringComparison.OrdinalIgnoreCase))
-            .Where(resource => resource.Name.Contains("DNA-VARS", StringComparison.OrdinalIgnoreCase) ||
-                               string.Equals(resource.Name, "DROVER", StringComparison.OrdinalIgnoreCase) ||
-                               string.Equals(resource.Name, "VARIABLES", StringComparison.OrdinalIgnoreCase))
+            .Where(resource => IsSpectrumJsonResourceName(resource.Name))
             .Where(resource => CountSequence(data, resource.Offset, resource.Size, rgb) >= 8)
             .OrderBy(resource => resource.Offset)
             .ToArray();
     }
+
+    internal static bool IsSpectrumJsonResourceName(string name) =>
+        name.Contains("DNA-VARS", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("DROVER-VARS", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "DROVER", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "VARIABLES", StringComparison.OrdinalIgnoreCase);
 
     private static int[] FindLegacyThemeColors(byte[] data, DvauiPeImage pe)
     {
@@ -375,11 +379,15 @@ public static class ThemePatcher
             return;
         }
         if (node is JsonObject obj)
+        {
             foreach (var propertyValue in obj.Select(x => x.Value))
                 if (propertyValue is not null) CollectJsonColors(propertyValue, counts);
-                else if (node is JsonArray array)
-                    foreach (var item in array)
-                        if (item is not null) CollectJsonColors(item, counts);
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var item in array)
+                if (item is not null) CollectJsonColors(item, counts);
+        }
     }
 
     private static bool TryParseCssColor(string text, out float r, out float g, out float b, out float alpha)

@@ -1,17 +1,28 @@
 #define MyAppName "AfterThemed"
 #define MyAppDisplayName "AfterThemed by Drerachi"
+#ifndef MyAppVersion
 #define MyAppVersion "1.3.6"
+#endif
 #define MyAppPublisher "Drerachi"
 #define MyAppExeName "AfterThemed.exe"
+#ifndef MyAppId
+#define MyAppId "{{B359DA8A-527A-4C90-B5A4-9C7FDF25058E}"
+#endif
+#ifndef MyAppUninstallKey
+#define MyAppUninstallKey "{B359DA8A-527A-4C90-B5A4-9C7FDF25058E}_is1"
+#endif
+#ifndef MyAppDefaultDir
+#define MyAppDefaultDir "{localappdata}\Programs\AfterThemed"
+#endif
 
 [Setup]
-AppId={{B359DA8A-527A-4C90-B5A4-9C7FDF25058E}
+AppId={#MyAppId}
 AppName={#MyAppName}
 AppVerName={#MyAppDisplayName} {#MyAppVersion}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppCopyright=Copyright (C) 2026 Drerachi. All rights reserved.
-DefaultDirName={localappdata}\Programs\AfterThemed
+DefaultDirName={#MyAppDefaultDir}
 DefaultGroupName={#MyAppDisplayName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -29,6 +40,7 @@ WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
+AppMutex=AfterThemed.App
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -51,48 +63,92 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppDisplayName}"; Fl
 [Code]
 const
   AfterThemedUninstallKey =
-    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{B359DA8A-527A-4C90-B5A4-9C7FDF25058E}_is1';
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppUninstallKey}';
 
 function QueryAfterThemedAtRoot(const RootKey: Integer;
   var InstalledVersion, UninstallCommand: String): Boolean;
 var
   DisplayName: String;
+  QuietUninstallCommand: String;
 begin
   Result :=
     RegQueryStringValue(RootKey, AfterThemedUninstallKey, 'DisplayName', DisplayName) and
     (Pos('AfterThemed', DisplayName) = 1) and
-    RegQueryStringValue(RootKey, AfterThemedUninstallKey, 'DisplayVersion', InstalledVersion) and
-    RegQueryStringValue(RootKey, AfterThemedUninstallKey, 'UninstallString', UninstallCommand);
+    RegQueryStringValue(RootKey, AfterThemedUninstallKey, 'DisplayVersion', InstalledVersion);
+  if not Result then
+    Exit;
+
+  if RegQueryStringValue(RootKey, AfterThemedUninstallKey,
+    'QuietUninstallString', QuietUninstallCommand) then
+    UninstallCommand := QuietUninstallCommand
+  else
+    Result := RegQueryStringValue(RootKey, AfterThemedUninstallKey,
+      'UninstallString', UninstallCommand);
 end;
 
-function QueryInstalledAfterThemed(var InstalledVersion, UninstallCommand: String): Boolean;
+function QueryInstalledAfterThemed(var InstalledRoot: Integer;
+  var InstalledVersion, UninstallCommand: String): Boolean;
 begin
-  Result := QueryAfterThemedAtRoot(HKCU64, InstalledVersion, UninstallCommand);
+  InstalledRoot := HKCU64;
+  Result := QueryAfterThemedAtRoot(InstalledRoot, InstalledVersion, UninstallCommand);
   if not Result then
-    Result := QueryAfterThemedAtRoot(HKCU32, InstalledVersion, UninstallCommand);
+  begin
+    InstalledRoot := HKCU32;
+    Result := QueryAfterThemedAtRoot(InstalledRoot, InstalledVersion, UninstallCommand);
+  end;
   if not Result then
-    Result := QueryAfterThemedAtRoot(HKLM64, InstalledVersion, UninstallCommand);
+  begin
+    InstalledRoot := HKLM64;
+    Result := QueryAfterThemedAtRoot(InstalledRoot, InstalledVersion, UninstallCommand);
+  end;
   if not Result then
-    Result := QueryAfterThemedAtRoot(HKLM32, InstalledVersion, UninstallCommand);
+  begin
+    InstalledRoot := HKLM32;
+    Result := QueryAfterThemedAtRoot(InstalledRoot, InstalledVersion, UninstallCommand);
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
+  InstalledRoot: Integer;
   InstalledVersion: String;
   UninstallCommand: String;
+  InstalledPackedVersion: Int64;
+  SetupPackedVersion: Int64;
+  VersionOrder: Integer;
   ResultCode: Integer;
 begin
   Result := '';
   NeedsRestart := False;
 
-  if not QueryInstalledAfterThemed(InstalledVersion, UninstallCommand) then
+  if not QueryInstalledAfterThemed(InstalledRoot, InstalledVersion,
+    UninstallCommand) then
     Exit;
-  if CompareText(InstalledVersion, '{#MyAppVersion}') = 0 then
+
+  if not StrToVersion(InstalledVersion, InstalledPackedVersion) then
+  begin
+    Result := Format('Setup found AfterThemed %s but could not compare its version safely. Uninstall it from Windows Settings, then run Setup again.', [InstalledVersion]);
     Exit;
+  end;
+  if not StrToVersion('{#MyAppVersion}', SetupPackedVersion) then
+  begin
+    Result := 'Setup contains an invalid application version and cannot continue.';
+    Exit;
+  end;
+
+  VersionOrder := ComparePackedVersion(InstalledPackedVersion, SetupPackedVersion);
+  if VersionOrder = 0 then
+    Exit;
+  if VersionOrder > 0 then
+  begin
+    Result := Format('AfterThemed %s is newer than this %s installer. Uninstall the newer version explicitly before downgrading.', [InstalledVersion, '{#MyAppVersion}']);
+    Exit;
+  end;
 
   Log(Format('Removing AfterThemed %s before installing {#MyAppVersion}.', [InstalledVersion]));
   if not Exec('>', UninstallCommand +
-    ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE,
+    ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="' +
+    ExpandConstant('{tmp}\AfterThemed-upgrade-uninstall.log') + '"', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode) then
   begin
     Result := Format('Setup could not start the uninstaller for AfterThemed %s: %s', [InstalledVersion, SysErrorMessage(ResultCode)]);
@@ -100,5 +156,11 @@ begin
   end;
 
   if ResultCode <> 0 then
+  begin
     Result := Format('AfterThemed %s could not be removed (exit code %d). Close AfterThemed and run Setup again.', [InstalledVersion, ResultCode]);
+    Exit;
+  end;
+
+  if RegKeyExists(InstalledRoot, AfterThemedUninstallKey) then
+    Result := Format('AfterThemed %s reported a successful uninstall, but its Windows registration remains. Uninstall it from Windows Settings, then run Setup again.', [InstalledVersion]);
 end;

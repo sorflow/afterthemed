@@ -61,6 +61,7 @@ Every native edit begins from an immutable Adobe-signed original captured on the
 
 ## What it handles
 
+- Structurally validated Windows x64 DVAUI releases in the CC 2018–2026 range, including the 14.6 `DROVER-VARS` and 26.3 `DROVER-DNA-VARS` layouts.
 - Native DVAUI background, panel, raised-surface, text, primary, secondary, and danger roles.
 - Built-in palettes plus imports from `.theme`, `.css`, `.json`, and `.xml` files.
 - CSS hexadecimal, RGB, HSL, ARGB, and gradient color discovery.
@@ -78,6 +79,7 @@ AfterThemed works on files that can stop After Effects from launching when handl
 1. The selected original must pass structure and Adobe-signature checks.
 2. Original snapshots are stored outside the application installation directory.
 3. A generated DLL must keep the original architecture, length, and expected structure.
+4. A newer setup removes the registered older app version before installing and leaves snapshots, backups, and settings in the separate user-data directory.
 4. Installation is blocked while After Effects is running.
 5. Existing targets and every panel file are backed up before replacement.
 6. Restore operations verify the recovered bytes instead of assuming the copy succeeded.

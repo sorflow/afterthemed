@@ -20,4 +20,8 @@
     <None Include="..\..\LICENSE.txt" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AfterThemed.RegressionTests" />
+  </ItemGroup>
+
 </Project>
