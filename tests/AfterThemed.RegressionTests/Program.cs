@@ -1,4 +1,5 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
+using System.Drawing;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -55,6 +56,12 @@ internal static class Program
             LegacyNativeColorLoadsAcceptDvaEncodings, failures);
         Run("After Effects 2020 companion XML maps native semantic colors",
             Ae2020CompanionXmlMapsNativeSemanticColors, failures);
+        Run("foreground roles contrast with the surface they sit on",
+            ForegroundRolesContrastWithTheSurfaceTheySitOn, failures);
+        Run("companion selection follows resources, not the reported version",
+            CompanionSelectionFollowsResourcesNotVersion, failures);
+        Run("a themed companion is never preserved as an Adobe original",
+            ThemedCompanionIsNeverPreservedAsAnOriginal, failures);
         Run("installer upgrade guard matches the application mutex",
             InstallerUpgradeGuardMatchesApplicationMutex, failures);
 
@@ -794,6 +801,188 @@ internal static class Program
         WriteSingle(data, nativeColorOffset + 8, 38f / 255f);
         WriteSingle(data, nativeColorOffset + 12, 1f);
         return new HybridDvauiFixture(data, nativeColorOffset, jsonOffset, jsonSize);
+    }
+
+    /// <summary>
+    /// Builds a minimal AfterFXLib.dll-shaped PE whose XML resources carry the named native color
+    /// themes, optionally padded the way theming leaves them.
+    /// </summary>
+    private static void ForegroundRolesContrastWithTheSurfaceTheySitOn()
+    {
+        // A light raised surface with light UI text: the foreground has to follow the control's
+        // own face, not the theme's text role, and not the shadow drawn behind the control.
+        var settings = ThemeSettings.HatsuneMikuAccessible with
+        {
+            Background = ColorTranslator.FromHtml("#5A0A14"),
+            Panel = ColorTranslator.FromHtml("#7A0F1E"),
+            Raised = ColorTranslator.FromHtml("#FFE000"),
+            Primary = ColorTranslator.FromHtml("#FFE000"),
+            Text = ColorTranslator.FromHtml("#FFFFFF")
+        };
+
+        const string xml = """
+            <?xml version="1.0"?><ThemeColors>
+              <KeyFrame name="&amp;kColor_ButtonNormalDownInnerFillStartGradient;" v="0.20" />
+              <KeyFrame name="&amp;kColor_ButtonNormalDownTopShadowFill;" v="0.20" />
+              <KeyFrame name="&amp;kColor_ButtonNormalDownTextColor;" v="0.60" />
+              <KeyFrame name="&amp;kColor_ApplicationBackground;" v="0.10" />
+              <KeyFrame name="&amp;kColor_ContentBackground;" v="0.20" />
+              <KeyFrame name="&amp;kColor_Focus;" v="0.80" />
+              <KeyFrame name="&amp;kColor_StaticTextNormal;" v="0.60" />
+              <KeyFrame name="&amp;kColor_TextEditBackgroundFocused;" v="0.60" />
+              <KeyFrame name="&amp;kColor_TextEditTextFocused;" v="0.60" />
+              <KeyFrame name="&amp;kColor_ButtonSelectedText;" v="0.60" />
+            </ThemeColors>
+            """;
+
+        var rewritten = LegacyAeThemePatcher.RewriteThemeXml(xml, settings, out _);
+
+        // #5A0A14 is the dark background role, the readable choice against a #FFE000 face.
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_ButtonNormalDownTextColor;\" h=\"352.5\" s=\"0.888889\" v=\"0.352941\"",
+                StringComparison.Ordinal),
+            "button text was not made readable against the button's own light face");
+
+        // Unpaired body text still follows the panel it sits on.
+        Require(rewritten.Contains(
+                "name=\"&amp;kColor_StaticTextNormal;\" h=\"0\" s=\"0\" v=\"1\"",
+                StringComparison.Ordinal),
+            "body text on a dark panel stopped using the light text role");
+    }
+
+    private static readonly string[] CompanionResourceNames =
+        ["AECOLORTHEMES", "DVACOLORTHEMESV2", "DVACOLORTHEMESV4", "DVACOLORTHEMESV5"];
+
+    private static void CompanionSelectionFollowsResourcesNotVersion()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterthemed-regression-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            // After Effects stamps dvaui.dll with the application version in some releases and the
+            // DVA version in others, so selection has to follow the resources the companion carries.
+            var complete = Path.Combine(root, "AfterFXLib.dll");
+            File.WriteAllBytes(complete, CreateCompanionFixture(CompanionResourceNames, themed: false));
+            Require(LegacyAeThemePatcher.HasNativeThemeResources(complete),
+                "a companion carrying every native color theme was not recognized");
+
+            var partial = Path.Combine(root, "Partial.dll");
+            File.WriteAllBytes(partial, CreateCompanionFixture(
+                ["AECOLORTHEMES", "DVACOLORTHEMESV2"], themed: false));
+            Require(!LegacyAeThemePatcher.HasNativeThemeResources(partial),
+                "a companion missing native color themes was treated as themeable");
+
+            var unrelated = Path.Combine(root, "Modern.dll");
+            File.WriteAllBytes(unrelated, CreateCompanionFixture(["SPECTRUM"], themed: false));
+            Require(!LegacyAeThemePatcher.HasNativeThemeResources(unrelated),
+                "a modern companion without legacy color themes was treated as themeable");
+
+            Require(!LegacyAeThemePatcher.HasNativeThemeResources(Path.Combine(root, "Absent.dll")),
+                "a missing companion was treated as themeable");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void ThemedCompanionIsNeverPreservedAsAnOriginal()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterthemed-regression-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            // Companion originals are accepted on their embedded Adobe signer alone, so an already
+            // themed companion must never be captured as if it were Adobe's original.
+            var pristine = Path.Combine(root, "Pristine.dll");
+            File.WriteAllBytes(pristine, CreateCompanionFixture(CompanionResourceNames, themed: false));
+            Require(!LegacyAeThemePatcher.IsAlreadyThemed(pristine),
+                "an untouched companion was mistaken for a themed one");
+
+            var themed = Path.Combine(root, "Themed.dll");
+            File.WriteAllBytes(themed, CreateCompanionFixture(CompanionResourceNames, themed: true));
+            Require(LegacyAeThemePatcher.IsAlreadyThemed(themed),
+                "a themed companion would have been preserved as an Adobe original");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    /// Builds a minimal AfterFXLib.dll-shaped PE whose XML resources carry the named native color
+    /// themes, optionally padded the way theming leaves them.
+    /// </summary>
+    private static byte[] CreateCompanionFixture(string[] resourceNames, bool themed)
+    {
+        const int peOffset = 0x80;
+        const int optionalHeader = peOffset + 24;
+        const int sectionTable = optionalHeader + 0xF0;
+        const int resourceBase = 0x800;
+        const uint resourceRva = 0x3000;
+
+        var data = new byte[0x2000];
+        data[0] = (byte)'M';
+        data[1] = (byte)'Z';
+        WriteInt32(data, 0x3C, peOffset);
+        WriteUInt32(data, peOffset, 0x00004550);
+        WriteUInt16(data, peOffset + 4, 0x8664);
+        WriteUInt16(data, peOffset + 6, 2);
+        WriteUInt16(data, peOffset + 20, 0xF0);
+        WriteUInt16(data, optionalHeader, 0x20B);
+        WriteUInt64(data, optionalHeader + 24, 0x0000000180000000);
+        WriteUInt32(data, optionalHeader + 128, resourceRva);
+        WriteUInt32(data, optionalHeader + 132, 0xC00);
+
+        WriteSection(data, sectionTable, 0, ".text", 0x1000, 0x400, 0x200, 0x60000020);
+        WriteSection(data, sectionTable, 1, ".rsrc", resourceRva, (uint)resourceBase, 0xC00, 0x40000040);
+
+        // Type directory: one named "XML" entry pointing at the name directory.
+        WriteUInt16(data, resourceBase + 12, 1);
+        WriteUInt32(data, resourceBase + 16, 0x80000100);
+        WriteUInt32(data, resourceBase + 20, 0x80000020);
+        WriteResourceString(data, resourceBase + 0x100, "XML");
+
+        WriteUInt16(data, resourceBase + 0x20 + 12, checked((ushort)resourceNames.Length));
+        for (var index = 0; index < resourceNames.Length; index++)
+        {
+            var nameString = 0x120 + index * 0x30;
+            var languageDirectory = 0x60 + index * 0x20;
+            var dataEntry = 0x200 + index * 0x10;
+            var payload = 0x400 + index * 0x200;
+
+            WriteResourceString(data, resourceBase + nameString, resourceNames[index]);
+            WriteUInt32(data, resourceBase + 0x30 + index * 8, 0x80000000u | (uint)nameString);
+            WriteUInt32(data, resourceBase + 0x34 + index * 8, 0x80000000u | (uint)languageDirectory);
+
+            // Language directory: a single 1033 entry pointing at the data entry.
+            WriteUInt16(data, resourceBase + languageDirectory + 14, 1);
+            WriteUInt32(data, resourceBase + languageDirectory + 16, 1033);
+            WriteUInt32(data, resourceBase + languageDirectory + 20, (uint)dataEntry);
+
+            WriteUInt32(data, resourceBase + dataEntry, resourceRva + (uint)payload);
+            WriteUInt32(data, resourceBase + dataEntry + 4, 0x200);
+
+            var xml = Encoding.UTF8.GetBytes(
+                "<?xml version=\"1.0\"?><ThemeColors>" +
+                "<KeyFrame name=\"&amp;kColor_ApplicationBackground;\" v=\"0.10\" />" +
+                "</ThemeColors>");
+            var payloadOffset = resourceBase + payload;
+            if (themed)
+            {
+                // Theming minifies the XML and reclaims the remainder as padding.
+                data.AsSpan(payloadOffset, 0x200).Fill((byte)' ');
+                xml.CopyTo(data, payloadOffset);
+            }
+            else
+            {
+                xml.CopyTo(data, payloadOffset);
+                data.AsSpan(payloadOffset + xml.Length, 0x200 - xml.Length).Fill((byte)'\n');
+            }
+        }
+
+        return data;
     }
 
     private static void WriteSection(byte[] data, int sectionTable, int index, string name, uint rva,

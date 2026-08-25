@@ -457,6 +457,34 @@ internal static class OriginalDllStore
         }
     }
 
+    /// <summary>
+    /// Adobe ships AfterFXLib.dll with an embedded Adobe signature whose Authenticode hash does not
+    /// validate, in every release checked from CC 2019 to 2025, so the companion original is accepted
+    /// on its embedded Adobe signer alone. The file is still required to be a readable PE signed by
+    /// Adobe, and the snapshot still records the SHA-256 that pins byte-exact restore and rollback.
+    /// This relaxation is only ever passed for the AfterFXLib.dll companion; dvaui.dll continues to
+    /// require full Authenticode validation through <see cref="EnsureAdobeSigned"/>.
+    /// </summary>
+    internal static AdobeSignature EnsureAdobeCompanionSigner(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        EnsurePortableExecutable(fullPath);
+        try
+        {
+#pragma warning disable SYSLIB0057 // Required to read the signer embedded in a signed PE, not a standalone certificate file.
+            using var certificate = X509Certificate.CreateFromSignedFile(fullPath);
+#pragma warning restore SYSLIB0057
+            var subject = certificate.Subject ?? string.Empty;
+            if (!subject.Contains("Adobe", StringComparison.OrdinalIgnoreCase))
+                throw InvalidAdobeOriginal($"The companion signer is '{subject}', not Adobe.");
+            return new AdobeSignature(subject, certificate.GetCertHashString());
+        }
+        catch (CryptographicException exception)
+        {
+            throw InvalidAdobeOriginal("The companion has no readable embedded Adobe signing certificate.", exception);
+        }
+    }
+
     private static InvalidDataException InvalidAdobeOriginal(string detail, Exception? inner = null) =>
         new("This dvaui.dll is modified or its Adobe signature is invalid. AfterThemed will not preserve, " +
             "theme, or restore it as an original. Repair this After Effects version in Creative Cloud, then " +

@@ -690,7 +690,7 @@ public partial class Form1 : Form
         var companion = LegacyAeThemePatcher.GenerateForDvaui(
             target.Text, Originals, Path.Combine(Variants, companionName), settings);
         if (companion is not null)
-            Log($"Generated AE 2020 native theme companion: {companion.InputPath}\r\nSHA-256: {companion.Sha256}");
+            Log($"Generated native theme companion: {companion.InputPath}\r\nSHA-256: {companion.Sha256}");
         return new GeneratedThemeFiles(output, companion);
     }
 
@@ -804,7 +804,7 @@ public partial class Form1 : Form
         else if (process.ExitCode != 0)
             throw new InvalidOperationException($"{operation} failed or was cancelled.");
 
-        Log($"{operation} completed. Both AE 2020 native theme files were verified and backed up in {Backups}.");
+        Log($"{operation} completed. Both native theme files were verified and backed up in {Backups}.");
         try { File.Delete(manifestPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
         try { File.Delete(reportPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
     }

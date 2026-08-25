@@ -4,6 +4,15 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.10 - 2026-08-25
+
+### Fixed
+
+- Native `AfterFXLib.dll` theming now covers every After Effects release that stores color themes there, instead of only After Effects 2020. Releases do not report a comparable version number — CC 2019 and 2023 stamp the application version onto `dvaui.dll` while 2020 and 2021 stamp the DVA version — so the companion is now selected by the color resources it actually carries. CC 2019, which keeps no colors in `dvaui.dll` at all, previously received font changes only.
+- Companion originals are now accepted on their embedded Adobe signer, because Adobe ships `AfterFXLib.dll` with an Authenticode hash that does not validate in any release from CC 2019 to 2025. Preserving and restoring the companion previously failed for every version. `dvaui.dll` still requires full Authenticode validation.
+- An `AfterFXLib.dll` that AfterThemed already themed is no longer captured as though it were Adobe's original, so a themed companion cannot overwrite the preserved copy that Restore depends on.
+- Native text and button labels now contrast with the surface they are actually drawn on. Foreground colors were previously chosen from the color's own name, which cannot tell which surface sits behind it, so a light raised surface kept light text and pressed-button labels were painted the same color as the button face. Each foreground role is now matched to the surface role declared for the same control, preferring the control's fill over the shadow, glow, or outline around it.
+
 ## 1.3.9 - 2026-08-24
 
 ### Fixed
@@ -76,6 +85,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.10]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.10
 [1.3.9]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.9
 [1.3.8]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.8
 [1.3.7]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.7
