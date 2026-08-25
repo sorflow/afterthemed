@@ -4,6 +4,12 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.11 - 2026-08-25
+
+### Added
+
+- 16 new built-in presets modeled on popular editor and terminal color schemes: Catppuccin Mocha, Nord, Everforest, Tokyo Night, Kanagawa, Rosé Pine, Dracula, One Dark Pro, Solarized Dark, Solarized Light, Monokai, Ayu Dark, Night Owl, Oxocarbon, Synthwave '84, and Material Palenight. Each maps its own background, panel, raised surface, text, and primary/secondary/danger accent colors, and is recognized on reopen the same way the existing built-ins are.
+
 ## 1.3.10 - 2026-08-25
 
 ### Fixed
@@ -85,6 +91,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.11]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.11
 [1.3.10]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.10
 [1.3.9]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.9
 [1.3.8]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.8

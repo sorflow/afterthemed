@@ -37,6 +37,70 @@ public sealed record ThemeSettings(
         ColorTranslator.FromHtml("#1F2527"), ColorTranslator.FromHtml("#242F31"), ColorTranslator.FromHtml("#29383A"),
         ColorTranslator.FromHtml("#BEC8D1"), ColorTranslator.FromHtml("#86CECB"), ColorTranslator.FromHtml("#59C9CC"),
         ColorTranslator.FromHtml("#FF9ACC"), .62f, true, .55f);
+    public static ThemeSettings CatppuccinMocha => new(
+        ColorTranslator.FromHtml("#1E1E2E"), ColorTranslator.FromHtml("#313244"), ColorTranslator.FromHtml("#45475A"),
+        ColorTranslator.FromHtml("#CDD6F4"), ColorTranslator.FromHtml("#CBA6F7"), ColorTranslator.FromHtml("#89B4FA"),
+        ColorTranslator.FromHtml("#F38BA8"), .43f);
+    public static ThemeSettings Nord => new(
+        ColorTranslator.FromHtml("#2E3440"), ColorTranslator.FromHtml("#3B4252"), ColorTranslator.FromHtml("#434C5E"),
+        ColorTranslator.FromHtml("#D8DEE9"), ColorTranslator.FromHtml("#88C0D0"), ColorTranslator.FromHtml("#81A1C1"),
+        ColorTranslator.FromHtml("#BF616A"), .43f);
+    public static ThemeSettings Everforest => new(
+        ColorTranslator.FromHtml("#2D353B"), ColorTranslator.FromHtml("#343F44"), ColorTranslator.FromHtml("#3D484D"),
+        ColorTranslator.FromHtml("#D3C6AA"), ColorTranslator.FromHtml("#A7C080"), ColorTranslator.FromHtml("#7FBBB3"),
+        ColorTranslator.FromHtml("#E67E80"), .43f);
+    public static ThemeSettings TokyoNight => new(
+        ColorTranslator.FromHtml("#1A1B26"), ColorTranslator.FromHtml("#1F2335"), ColorTranslator.FromHtml("#292E42"),
+        ColorTranslator.FromHtml("#C0CAF5"), ColorTranslator.FromHtml("#7AA2F7"), ColorTranslator.FromHtml("#BB9AF7"),
+        ColorTranslator.FromHtml("#F7768E"), .43f);
+    public static ThemeSettings Kanagawa => new(
+        ColorTranslator.FromHtml("#1F1F28"), ColorTranslator.FromHtml("#2A2A37"), ColorTranslator.FromHtml("#363646"),
+        ColorTranslator.FromHtml("#DCD7BA"), ColorTranslator.FromHtml("#7E9CD8"), ColorTranslator.FromHtml("#957FB8"),
+        ColorTranslator.FromHtml("#C34043"), .43f);
+    public static ThemeSettings RosePine => new(
+        ColorTranslator.FromHtml("#191724"), ColorTranslator.FromHtml("#1F1D2E"), ColorTranslator.FromHtml("#26233A"),
+        ColorTranslator.FromHtml("#E0DEF4"), ColorTranslator.FromHtml("#C4A7E7"), ColorTranslator.FromHtml("#9CCFD8"),
+        ColorTranslator.FromHtml("#EB6F92"), .43f);
+    public static ThemeSettings Dracula => new(
+        ColorTranslator.FromHtml("#282A36"), ColorTranslator.FromHtml("#343746"), ColorTranslator.FromHtml("#44475A"),
+        ColorTranslator.FromHtml("#F8F8F2"), ColorTranslator.FromHtml("#BD93F9"), ColorTranslator.FromHtml("#8BE9FD"),
+        ColorTranslator.FromHtml("#FF5555"), .43f);
+    public static ThemeSettings OneDarkPro => new(
+        ColorTranslator.FromHtml("#282C34"), ColorTranslator.FromHtml("#2C323C"), ColorTranslator.FromHtml("#3E4451"),
+        ColorTranslator.FromHtml("#ABB2BF"), ColorTranslator.FromHtml("#61AFEF"), ColorTranslator.FromHtml("#C678DD"),
+        ColorTranslator.FromHtml("#E06C75"), .43f);
+    public static ThemeSettings SolarizedDark => new(
+        ColorTranslator.FromHtml("#002B36"), ColorTranslator.FromHtml("#073642"), ColorTranslator.FromHtml("#0B4D5C"),
+        ColorTranslator.FromHtml("#839496"), ColorTranslator.FromHtml("#268BD2"), ColorTranslator.FromHtml("#2AA198"),
+        ColorTranslator.FromHtml("#DC322F"), .43f);
+    public static ThemeSettings SolarizedLight => new(
+        ColorTranslator.FromHtml("#FDF6E3"), ColorTranslator.FromHtml("#EEE8D5"), ColorTranslator.FromHtml("#E4DCC3"),
+        ColorTranslator.FromHtml("#657B83"), ColorTranslator.FromHtml("#268BD2"), ColorTranslator.FromHtml("#2AA198"),
+        ColorTranslator.FromHtml("#DC322F"), .43f);
+    public static ThemeSettings Monokai => new(
+        ColorTranslator.FromHtml("#272822"), ColorTranslator.FromHtml("#3E3D32"), ColorTranslator.FromHtml("#49483E"),
+        ColorTranslator.FromHtml("#F8F8F2"), ColorTranslator.FromHtml("#F92672"), ColorTranslator.FromHtml("#A6E22E"),
+        ColorTranslator.FromHtml("#FD971F"), .43f);
+    public static ThemeSettings AyuDark => new(
+        ColorTranslator.FromHtml("#0A0E14"), ColorTranslator.FromHtml("#0D1017"), ColorTranslator.FromHtml("#131721"),
+        ColorTranslator.FromHtml("#B3B1AD"), ColorTranslator.FromHtml("#E6B450"), ColorTranslator.FromHtml("#59C2FF"),
+        ColorTranslator.FromHtml("#F07178"), .43f);
+    public static ThemeSettings NightOwl => new(
+        ColorTranslator.FromHtml("#011627"), ColorTranslator.FromHtml("#0E293F"), ColorTranslator.FromHtml("#1D3B53"),
+        ColorTranslator.FromHtml("#D6DEEB"), ColorTranslator.FromHtml("#82AAFF"), ColorTranslator.FromHtml("#7FDBCA"),
+        ColorTranslator.FromHtml("#EF5350"), .43f);
+    public static ThemeSettings Oxocarbon => new(
+        ColorTranslator.FromHtml("#161616"), ColorTranslator.FromHtml("#262626"), ColorTranslator.FromHtml("#393939"),
+        ColorTranslator.FromHtml("#F2F4F8"), ColorTranslator.FromHtml("#3DDBD9"), ColorTranslator.FromHtml("#BE95FF"),
+        ColorTranslator.FromHtml("#FA4D56"), .43f);
+    public static ThemeSettings Synthwave84 => new(
+        ColorTranslator.FromHtml("#262335"), ColorTranslator.FromHtml("#241B2F"), ColorTranslator.FromHtml("#34294F"),
+        ColorTranslator.FromHtml("#F4EEE4"), ColorTranslator.FromHtml("#FF7EDB"), ColorTranslator.FromHtml("#36F9F6"),
+        ColorTranslator.FromHtml("#FE4450"), .43f);
+    public static ThemeSettings MaterialPalenight => new(
+        ColorTranslator.FromHtml("#292D3E"), ColorTranslator.FromHtml("#32364A"), ColorTranslator.FromHtml("#444267"),
+        ColorTranslator.FromHtml("#A6ACCD"), ColorTranslator.FromHtml("#C792EA"), ColorTranslator.FromHtml("#82AAFF"),
+        ColorTranslator.FromHtml("#FF5370"), .43f);
 }
 
 public sealed record TextReplacement(string Find, string Replace);
@@ -93,7 +157,23 @@ public static class ThemePatcher
         ("Gruvbox Light", ThemeSettings.GruvboxLight),
         ("Material Lavender", ThemeSettings.MaterialLavender),
         ("Material Lavender Rich", ThemeSettings.MaterialLavenderRich),
-        ("Hatsune Miku Accessible", ThemeSettings.HatsuneMikuAccessible)
+        ("Hatsune Miku Accessible", ThemeSettings.HatsuneMikuAccessible),
+        ("Catppuccin Mocha", ThemeSettings.CatppuccinMocha),
+        ("Nord", ThemeSettings.Nord),
+        ("Everforest", ThemeSettings.Everforest),
+        ("Tokyo Night", ThemeSettings.TokyoNight),
+        ("Kanagawa", ThemeSettings.Kanagawa),
+        ("Rosé Pine", ThemeSettings.RosePine),
+        ("Dracula", ThemeSettings.Dracula),
+        ("One Dark Pro", ThemeSettings.OneDarkPro),
+        ("Solarized Dark", ThemeSettings.SolarizedDark),
+        ("Solarized Light", ThemeSettings.SolarizedLight),
+        ("Monokai", ThemeSettings.Monokai),
+        ("Ayu Dark", ThemeSettings.AyuDark),
+        ("Night Owl", ThemeSettings.NightOwl),
+        ("Oxocarbon", ThemeSettings.Oxocarbon),
+        ("Synthwave '84", ThemeSettings.Synthwave84),
+        ("Material Palenight", ThemeSettings.MaterialPalenight)
     };
 
     public static string Generate(string source, string output, ThemeSettings settings, bool useSfDisplay,

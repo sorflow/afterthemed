@@ -64,15 +64,15 @@ function Build-TestInstaller {
 
 try {
     New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-    Build-TestInstaller '1.3.9' 'AfterThemed-Setup-old'
-    Build-TestInstaller '1.3.10' 'AfterThemed-Setup-new'
+    Build-TestInstaller '1.3.10' 'AfterThemed-Setup-old'
+    Build-TestInstaller '1.3.11' 'AfterThemed-Setup-new'
 
     Invoke-CheckedProcess (Join-Path $buildRoot 'AfterThemed-Setup-old.exe') @(
         '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
     )
     $oldRegistration = Get-ItemProperty -LiteralPath $registryPath
-    if ($oldRegistration.DisplayVersion -ne '1.3.9') {
-        throw "Expected the synthetic old registration to be 1.3.9; got $($oldRegistration.DisplayVersion)."
+    if ($oldRegistration.DisplayVersion -ne '1.3.10') {
+        throw "Expected the synthetic old registration to be 1.3.10; got $($oldRegistration.DisplayVersion)."
     }
 
     Invoke-CheckedProcess (Join-Path $buildRoot 'AfterThemed-Setup-new.exe') @(
@@ -80,18 +80,18 @@ try {
     )
 
     $newRegistration = Get-ItemProperty -LiteralPath $registryPath
-    if ($newRegistration.DisplayVersion -ne '1.3.10') {
-        throw "Expected the upgraded registration to be 1.3.10; got $($newRegistration.DisplayVersion)."
+    if ($newRegistration.DisplayVersion -ne '1.3.11') {
+        throw "Expected the upgraded registration to be 1.3.11; got $($newRegistration.DisplayVersion)."
     }
     $uninstallers = @(Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe')
     if ($uninstallers.Count -ne 1) {
         throw "Expected one current uninstaller after upgrade; found $($uninstallers.Count)."
     }
-    if (-not (Select-String -LiteralPath $setupLog -SimpleMatch 'Removing AfterThemed 1.3.9 before installing 1.3.10.' -Quiet)) {
+    if (-not (Select-String -LiteralPath $setupLog -SimpleMatch 'Removing AfterThemed 1.3.10 before installing 1.3.11.' -Quiet)) {
         throw 'The setup log does not show the previous-version uninstall path.'
     }
 
-    Write-Host 'PASS: installer removed 1.3.9, installed 1.3.10, and left one current uninstaller.'
+    Write-Host 'PASS: installer removed 1.3.10, installed 1.3.11, and left one current uninstaller.'
 }
 finally {
     if (Test-Path -LiteralPath $registryPath) {

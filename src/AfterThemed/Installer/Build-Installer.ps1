@@ -35,7 +35,7 @@ if (-not (Test-Path -LiteralPath $publishedExecutable -PathType Leaf)) {
 & $compiler /Qp $installerScript
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
 
-$installer = Join-Path $projectRoot 'artifacts\installer\AfterThemed-Setup-1.3.10.exe'
+$installer = Join-Path $projectRoot 'artifacts\installer\AfterThemed-Setup-1.3.11.exe'
 if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
     throw "Installer was not created: $installer"
 }

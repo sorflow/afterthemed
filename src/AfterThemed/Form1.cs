@@ -31,6 +31,32 @@ public partial class Form1 : Form
 
     private const string AdobeDefaultFont = "Adobe Clean · original";
 
+    private static readonly (string Label, ThemeSettings Settings)[] BuiltInPresets =
+    [
+        ("Cyberpunk Burgundy", ThemeSettings.Cyberpunk),
+        ("Gruvbox Dark", ThemeSettings.GruvboxDark),
+        ("Gruvbox Light", ThemeSettings.GruvboxLight),
+        ("Material Lavender (M3)", ThemeSettings.MaterialLavender),
+        ("Material Lavender Rich (M3)", ThemeSettings.MaterialLavenderRich),
+        ("Hatsune Miku Accessible", ThemeSettings.HatsuneMikuAccessible),
+        ("Catppuccin Mocha", ThemeSettings.CatppuccinMocha),
+        ("Nord", ThemeSettings.Nord),
+        ("Everforest", ThemeSettings.Everforest),
+        ("Tokyo Night", ThemeSettings.TokyoNight),
+        ("Kanagawa", ThemeSettings.Kanagawa),
+        ("Rosé Pine", ThemeSettings.RosePine),
+        ("Dracula", ThemeSettings.Dracula),
+        ("One Dark Pro", ThemeSettings.OneDarkPro),
+        ("Solarized Dark", ThemeSettings.SolarizedDark),
+        ("Solarized Light", ThemeSettings.SolarizedLight),
+        ("Monokai", ThemeSettings.Monokai),
+        ("Ayu Dark", ThemeSettings.AyuDark),
+        ("Night Owl", ThemeSettings.NightOwl),
+        ("Oxocarbon", ThemeSettings.Oxocarbon),
+        ("Synthwave '84", ThemeSettings.Synthwave84),
+        ("Material Palenight", ThemeSettings.MaterialPalenight),
+    ];
+
     private string DataRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AfterThemed");
     private string Originals => Path.Combine(DataRoot, "Originals");
     private string Variants => Path.Combine(DataRoot, "Variants");
@@ -224,7 +250,7 @@ public partial class Form1 : Form
         card.Controls.Add(layout);
         layout.Controls.Add(SectionLabel("PROJECT"), 0, 0);
         layout.Controls.Add(Field("THEME NAME", themeName), 0, 1);
-        preset.Items.AddRange(["Cyberpunk Burgundy", "Gruvbox Dark", "Gruvbox Light", "Material Lavender (M3)", "Material Lavender Rich (M3)", "Hatsune Miku Accessible", "Custom / Imported"]);
+        preset.Items.AddRange(BuiltInPresets.Select(p => p.Label).Append("Custom / Imported"));
         preset.SelectedIndexChanged += (_, _) => ApplyPreset();
         layout.Controls.Add(Field("PRESET", preset), 0, 2);
         source.ReadOnly = true;
@@ -631,7 +657,7 @@ public partial class Form1 : Form
         Try(() =>
         {
             var imported = ThemeImporter.Load(dialog.FileName);
-            preset.SelectedIndex = 6;
+            preset.SelectedIndex = BuiltInPresets.Length;
             themeName.Text = imported.Name;
             importedColors = imported.Colors;
             SetColors(imported.Suggested);
@@ -642,16 +668,8 @@ public partial class Form1 : Form
 
     private void ApplyPreset()
     {
-        if (preset.SelectedIndex == 6) return;
-        var settings = preset.SelectedIndex switch
-        {
-            1 => ThemeSettings.GruvboxDark,
-            2 => ThemeSettings.GruvboxLight,
-            3 => ThemeSettings.MaterialLavender,
-            4 => ThemeSettings.MaterialLavenderRich,
-            5 => ThemeSettings.HatsuneMikuAccessible,
-            _ => ThemeSettings.Cyberpunk
-        };
+        if (preset.SelectedIndex < 0 || preset.SelectedIndex >= BuiltInPresets.Length) return;
+        var settings = BuiltInPresets[preset.SelectedIndex].Settings;
         importedColors = Array.Empty<Color>();
         importStatus.Text = "BUILT-IN PRESET  ·  LIVE PREVIEW";
         SetColors(settings);
@@ -671,11 +689,17 @@ public partial class Form1 : Form
         UpdatePreview();
     }
 
-    private ThemeSettings ReadSettings() => new(
-        ReadColor("App Background"), ReadColor("Panel Color"), ReadColor("Raised Surface"), ReadColor("UI Text Color"),
-        ReadColor("Primary Accent"), ReadColor("Secondary Accent"), ReadColor("Danger Accent"), cutoff.Value / 100f,
-        preset.SelectedIndex is 3 or 4 or 5,
-        preset.SelectedIndex switch { 4 => .45f, 5 => .55f, _ => 0f });
+    private ThemeSettings ReadSettings()
+    {
+        var selected = preset.SelectedIndex >= 0 && preset.SelectedIndex < BuiltInPresets.Length
+            ? BuiltInPresets[preset.SelectedIndex].Settings
+            : null;
+        return new(
+            ReadColor("App Background"), ReadColor("Panel Color"), ReadColor("Raised Surface"), ReadColor("UI Text Color"),
+            ReadColor("Primary Accent"), ReadColor("Secondary Accent"), ReadColor("Danger Accent"), cutoff.Value / 100f,
+            selected?.ExactAccents ?? false,
+            selected?.ForegroundAlphaFloor ?? 0f);
+    }
 
     private GeneratedThemeFiles GenerateTo(string fileName)
     {
@@ -1253,7 +1277,7 @@ public partial class Form1 : Form
         {
             if (IsDisposed || !colorBoxes.TryGetValue(name, out var box)) return;
             box.Text = Hex(color);
-            preset.SelectedIndex = 6;
+            preset.SelectedIndex = BuiltInPresets.Length;
             UpdatePreview();
         };
         picker.FormClosed += (_, _) =>
