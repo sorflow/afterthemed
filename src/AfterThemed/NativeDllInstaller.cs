@@ -146,6 +146,7 @@ internal static class NativeDllInstaller
         string? backupPath = null;
         string? fullTarget = null;
         string? expectedHash = null;
+        string? verifiedBackupHash = null;
         string? actualHash = null;
         var replacementCommitted = false;
         var rollbackAttempted = false;
@@ -176,8 +177,9 @@ internal static class NativeDllInstaller
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
             backupPath = Path.Combine(backupDirectory, $"dvaui-{stamp}-{Guid.NewGuid():N}.dll");
             File.Copy(fullTarget, backupPath, false);
-            actualHash = OriginalDllStore.Sha256(backupPath);
-            if (!string.Equals(OriginalDllStore.Sha256(fullTarget), actualHash, StringComparison.Ordinal))
+            verifiedBackupHash = OriginalDllStore.Sha256(backupPath);
+            actualHash = OriginalDllStore.Sha256(fullTarget);
+            if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
                 throw new IOException("The backup did not match the installed DLL.");
 
             stage = "staged copy";
@@ -190,9 +192,10 @@ internal static class NativeDllInstaller
                 throw new IOException("The staged DLL did not match the generated DLL.");
 
             stage = "pre-replacement verification";
-            var backupHash = OriginalDllStore.Sha256(backupPath);
+            if (!string.Equals(verifiedBackupHash, OriginalDllStore.Sha256(backupPath), StringComparison.Ordinal))
+                throw new IOException("The backup changed after it was verified; replacement was cancelled.");
             actualHash = OriginalDllStore.Sha256(fullTarget);
-            if (!string.Equals(backupHash, actualHash, StringComparison.Ordinal))
+            if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
                 throw new IOException("The installed DLL changed after it was backed up; replacement was cancelled.");
 
             stage = "DLL replacement";
@@ -214,7 +217,7 @@ internal static class NativeDllInstaller
             {
                 rollbackAttempted = true;
                 string? rollbackTemporaryPath = null;
-                if (backupPath is null || fullTarget is null || !File.Exists(backupPath))
+                if (backupPath is null || fullTarget is null || verifiedBackupHash is null || !File.Exists(backupPath))
                 {
                     rollbackMessage = "The verified backup was unavailable for rollback.";
                 }
@@ -225,14 +228,13 @@ internal static class NativeDllInstaller
                         rollbackTemporaryPath = Path.Combine(Path.GetDirectoryName(fullTarget)!,
                             $"dvaui.afterthemed-rollback-{Guid.NewGuid():N}.tmp");
                         File.Copy(backupPath, rollbackTemporaryPath, false);
-                        if (!string.Equals(OriginalDllStore.Sha256(backupPath),
-                                OriginalDllStore.Sha256(rollbackTemporaryPath), StringComparison.Ordinal))
+                        if (!string.Equals(verifiedBackupHash, OriginalDllStore.Sha256(rollbackTemporaryPath),
+                                StringComparison.Ordinal))
                             throw new IOException("The staged rollback DLL did not match the verified backup.");
                         File.Move(rollbackTemporaryPath, fullTarget, true);
                         rollbackTemporaryPath = null;
                         rollbackSucceeded = string.Equals(
-                            OriginalDllStore.Sha256(backupPath), OriginalDllStore.Sha256(fullTarget),
-                            StringComparison.Ordinal);
+                            verifiedBackupHash, OriginalDllStore.Sha256(fullTarget), StringComparison.Ordinal);
                         rollbackMessage = rollbackSucceeded
                             ? "The original installed DLL was restored from the verified backup."
                             : "The restored DLL did not match the verified backup.";
