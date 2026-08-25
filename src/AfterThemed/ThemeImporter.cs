@@ -7,6 +7,9 @@ public sealed record ImportedTheme(string Name, IReadOnlyList<Color> Colors, The
 
 public static partial class ThemeImporter
 {
+    private const float NeutralChroma = .15f;
+    private const float AccentChroma = .18f;
+
     public static ImportedTheme Load(string path)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
@@ -41,22 +44,49 @@ public static partial class ThemeImporter
         return result;
     }
 
-    private static ThemeSettings Suggest(string name, IReadOnlyList<Color> colors)
+    internal static ThemeSettings Suggest(string name, IReadOnlyList<Color> colors)
     {
-        var neutrals = colors.Where(c => Saturation(c) < .22f).OrderBy(Luminance).ToList();
-        var ordered = (neutrals.Count >= 3 ? neutrals : colors.OrderBy(Luminance).ToList());
-        var average = ordered.Average(c => Luminance(c));
-        var light = name.Contains("light", StringComparison.OrdinalIgnoreCase) || average > .58f;
-        var background = light ? ordered[^1] : ordered[0];
-        var text = light ? ordered[0] : ordered[^1];
-        var panel = ordered[Math.Clamp(light ? ordered.Count - 2 : 1, 0, ordered.Count - 1)];
-        var raised = ordered[Math.Clamp(light ? ordered.Count - 3 : 2, 0, ordered.Count - 1)];
+        var dark = IsDarkPalette(name, colors);
+        var neutrals = colors.Where(c => Chroma(c) < NeutralChroma).OrderBy(Luminance).ToList();
+        var ramp = neutrals.Count >= 3 ? neutrals : colors.OrderBy(Luminance).ToList();
+        // The ramp runs outwards from the background: darkest first on a dark
+        // palette, lightest first on a light one, with text at the far end.
+        if (!dark) ramp.Reverse();
 
-        var accents = colors.Where(c => Saturation(c) >= .28f).ToList();
-        var primary = accents.FirstOrDefault(Color.Gold);
-        var secondary = accents.FirstOrDefault(c => HueDistance(Hue(c), Hue(primary)) > 70, accents.Skip(1).FirstOrDefault(Color.Cyan));
+        var background = ramp[0];
+        var panel = ramp[Math.Min(1, ramp.Count - 1)];
+        var raised = ramp[Math.Min(2, ramp.Count - 1)];
+        var text = ramp[^1];
+        if (Math.Abs(Luminance(text) - Luminance(background)) < .35f)
+            text = dark ? Color.FromArgb(0xF2, 0xF2, 0xF2) : Color.FromArgb(0x1E, 0x1E, 0x1E);
+
+        // An accent has to carry real color and separate from the background, so a
+        // palette's own dark surfaces cannot be handed back as a highlight.
+        var surfaces = new HashSet<int> { background.ToArgb(), panel.ToArgb(), raised.ToArgb(), text.ToArgb() };
+        var accents = colors
+            .Where(c => Chroma(c) >= AccentChroma && !surfaces.Contains(c.ToArgb()) &&
+                        Math.Abs(Luminance(c) - Luminance(background)) >= .15f)
+            .OrderByDescending(Chroma)
+            .ToList();
+        if (accents.Count == 0)
+            accents = colors.Where(c => Chroma(c) >= AccentChroma).OrderByDescending(Chroma).ToList();
+
         var danger = accents.OrderBy(c => HueDistance(Hue(c), 0)).FirstOrDefault(Color.IndianRed);
+        var primary = accents.FirstOrDefault(c => c.ToArgb() != danger.ToArgb(), danger);
+        var spare = accents.Where(c => c.ToArgb() != primary.ToArgb() && c.ToArgb() != danger.ToArgb()).ToList();
+        var secondary = spare.FirstOrDefault(c => HueDistance(Hue(c), Hue(primary)) > 55,
+            spare.FirstOrDefault(primary));
         return new ThemeSettings(background, panel, raised, text, primary, secondary, danger, .43f);
+    }
+
+    private static bool IsDarkPalette(string name, IReadOnlyList<Color> colors)
+    {
+        if (name.Contains("light", StringComparison.OrdinalIgnoreCase)) return false;
+        if (name.Contains("dark", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("night", StringComparison.OrdinalIgnoreCase)) return true;
+        var neutrals = colors.Where(c => Chroma(c) < NeutralChroma).ToList();
+        if (neutrals.Count == 0) neutrals = colors.ToList();
+        return neutrals.Count(c => Luminance(c) < .45f) >= neutrals.Count(c => Luminance(c) > .55f);
     }
 
     private static ThemeSettings? ReadExplicitRoles(string text)
@@ -131,7 +161,13 @@ public static partial class ThemeImporter
         color = Color.FromArgb((int)Math.Round((r + m) * 255), (int)Math.Round((g + m) * 255), (int)Math.Round((b + m) * 255)); return true;
     }
     private static float Luminance(Color c) => (.2126f * c.R + .7152f * c.G + .0722f * c.B) / 255f;
-    private static float Saturation(Color c) { var max = Math.Max(c.R, Math.Max(c.G, c.B)); var min = Math.Min(c.R, Math.Min(c.G, c.B)); return max == 0 ? 0 : (max - min) / (float)max; }
+
+    // Absolute chroma, not the HSV (max-min)/max reading used before. Dividing by
+    // max inflates dark colors—Nord's #2E3440 scored .28 and was rejected as an
+    // accent—so a dark palette lost every surface it had and was rebuilt from its
+    // text colors as a light theme.
+    private static float Chroma(Color c) =>
+        (Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B))) / 255f;
     private static float Hue(Color c) => c.GetHue();
     private static float HueDistance(float a, float b) { var d = Math.Abs(a - b) % 360; return Math.Min(d, 360 - d); }
 

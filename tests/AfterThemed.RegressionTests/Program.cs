@@ -64,6 +64,10 @@ internal static class Program
             ThemedCompanionIsNeverPreservedAsAnOriginal, failures);
         Run("installer upgrade guard matches the application mutex",
             InstallerUpgradeGuardMatchesApplicationMutex, failures);
+        Run("an imported dark palette keeps its own dark surfaces",
+            ImportedDarkPaletteKeepsItsDarkSurfaces, failures);
+        Run("an imported light palette keeps its own light surfaces",
+            ImportedLightPaletteKeepsItsLightSurfaces, failures);
 
         foreach (var failure in failures) Console.Error.WriteLine($"FAIL: {failure}");
         if (failures.Count != 0) return 1;
@@ -848,6 +852,53 @@ internal static class Program
                 "name=\"&amp;kColor_StaticTextNormal;\" h=\"0\" s=\"0\" v=\"1\"",
                 StringComparison.Ordinal),
             "body text on a dark panel stopped using the light text role");
+    }
+
+    private static void ImportedDarkPaletteKeepsItsDarkSurfaces()
+    {
+        // Nord. Its surfaces are dark but faintly blue, which an HSV saturation reading
+        // scores as .28 and rejects as an accent. Every surface was then discarded and
+        // the theme came back rebuilt from its text colors: a light background, a purple
+        // body text, and the darkest surface handed back as the primary accent.
+        var nord = new[]
+        {
+            "#2E3440", "#3B4252", "#434C5E", "#4C566A", "#D8DEE9", "#E5E9F0", "#ECEFF4",
+            "#8FBCBB", "#88C0D0", "#81A1C1", "#5E81AC", "#BF616A", "#D08770", "#EBCB8B",
+            "#A3BE8C", "#B48EAD"
+        }.Select(ColorTranslator.FromHtml).ToArray();
+
+        var suggested = ThemeImporter.Suggest("nord", nord);
+
+        Require(suggested.Background == ColorTranslator.FromHtml("#2E3440"),
+            $"the darkest Nord surface was not used as the background; got {suggested.Background}");
+        Require(suggested.Panel == ColorTranslator.FromHtml("#3B4252"),
+            $"the Nord panel surface was not the next shade up; got {suggested.Panel}");
+        Require(suggested.Text == ColorTranslator.FromHtml("#ECEFF4"),
+            $"Nord's body text was not its lightest neutral; got {suggested.Text}");
+        Require(suggested.Primary != suggested.Background && suggested.Secondary != suggested.Background,
+            "a background surface was handed back as an accent");
+        Require(suggested.Danger == ColorTranslator.FromHtml("#BF616A"),
+            $"Nord's red was not chosen for the danger role; got {suggested.Danger}");
+    }
+
+    private static void ImportedLightPaletteKeepsItsLightSurfaces()
+    {
+        var solarized = new[]
+        {
+            "#002B36", "#073642", "#586E75", "#657B83", "#839496", "#93A1A1", "#EEE8D5", "#FDF6E3",
+            "#B58900", "#CB4B16", "#DC322F", "#D33682", "#6C71C4", "#268BD2", "#2AA198", "#859900"
+        }.Select(ColorTranslator.FromHtml).ToArray();
+
+        var suggested = ThemeImporter.Suggest("solarized-light", solarized);
+
+        Require(suggested.Background == ColorTranslator.FromHtml("#FDF6E3"),
+            $"the lightest Solarized surface was not used as the background; got {suggested.Background}");
+        Require(suggested.Panel == ColorTranslator.FromHtml("#EEE8D5"),
+            $"the Solarized panel surface was not the next shade down; got {suggested.Panel}");
+        Require(suggested.Text.GetBrightness() < suggested.Background.GetBrightness(),
+            "body text on a light palette was not darker than its background");
+        Require(suggested.Danger == ColorTranslator.FromHtml("#DC322F"),
+            $"Solarized's red was not chosen for the danger role; got {suggested.Danger}");
     }
 
     private static readonly string[] CompanionResourceNames =
