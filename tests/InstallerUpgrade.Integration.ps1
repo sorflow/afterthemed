@@ -27,6 +27,7 @@ $installRoot = Join-Path $testRoot 'installed'
 $setupLog = Join-Path $testRoot 'upgrade-setup.log'
 $appId = '{{' + [Guid]::NewGuid().ToString().ToUpperInvariant() + '}'
 $uninstallKeyName = $appId.Substring(1) + '_is1'
+$mutexName = 'AfterThemed.Integration.' + [Guid]::NewGuid().ToString('N')
 $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$uninstallKeyName"
 
 function Invoke-CheckedProcess {
@@ -54,6 +55,7 @@ function Build-TestInstaller {
         "/DMyAppId=$appId",
         "/DMyAppUninstallKey=$uninstallKeyName",
         "/DMyAppDefaultDir=$installRoot",
+        "/DMyAppMutex=$mutexName",
         "/O$buildRoot",
         "/F$OutputName",
         ('"' + $installerScript + '"')
@@ -62,15 +64,15 @@ function Build-TestInstaller {
 
 try {
     New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-    Build-TestInstaller '1.3.6' 'AfterThemed-Setup-old'
-    Build-TestInstaller '1.3.7' 'AfterThemed-Setup-new'
+    Build-TestInstaller '1.3.7' 'AfterThemed-Setup-old'
+    Build-TestInstaller '1.3.8' 'AfterThemed-Setup-new'
 
     Invoke-CheckedProcess (Join-Path $buildRoot 'AfterThemed-Setup-old.exe') @(
         '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
     )
     $oldRegistration = Get-ItemProperty -LiteralPath $registryPath
-    if ($oldRegistration.DisplayVersion -ne '1.3.6') {
-        throw "Expected the synthetic old registration to be 1.3.6; got $($oldRegistration.DisplayVersion)."
+    if ($oldRegistration.DisplayVersion -ne '1.3.7') {
+        throw "Expected the synthetic old registration to be 1.3.7; got $($oldRegistration.DisplayVersion)."
     }
 
     Invoke-CheckedProcess (Join-Path $buildRoot 'AfterThemed-Setup-new.exe') @(
@@ -78,18 +80,18 @@ try {
     )
 
     $newRegistration = Get-ItemProperty -LiteralPath $registryPath
-    if ($newRegistration.DisplayVersion -ne '1.3.7') {
-        throw "Expected the upgraded registration to be 1.3.7; got $($newRegistration.DisplayVersion)."
+    if ($newRegistration.DisplayVersion -ne '1.3.8') {
+        throw "Expected the upgraded registration to be 1.3.8; got $($newRegistration.DisplayVersion)."
     }
     $uninstallers = @(Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe')
     if ($uninstallers.Count -ne 1) {
         throw "Expected one current uninstaller after upgrade; found $($uninstallers.Count)."
     }
-    if (-not (Select-String -LiteralPath $setupLog -SimpleMatch 'Removing AfterThemed 1.3.6 before installing 1.3.7.' -Quiet)) {
+    if (-not (Select-String -LiteralPath $setupLog -SimpleMatch 'Removing AfterThemed 1.3.7 before installing 1.3.8.' -Quiet)) {
         throw 'The setup log does not show the previous-version uninstall path.'
     }
 
-    Write-Host 'PASS: installer removed 1.3.6, installed 1.3.7, and left one current uninstaller.'
+    Write-Host 'PASS: installer removed 1.3.7, installed 1.3.8, and left one current uninstaller.'
 }
 finally {
     if (Test-Path -LiteralPath $registryPath) {

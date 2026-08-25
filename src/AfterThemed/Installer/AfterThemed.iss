@@ -1,7 +1,7 @@
 #define MyAppName "AfterThemed"
 #define MyAppDisplayName "AfterThemed by Drerachi"
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.7"
+#define MyAppVersion "1.3.8"
 #endif
 #define MyAppPublisher "Drerachi"
 #define MyAppExeName "AfterThemed.exe"
@@ -13,6 +13,9 @@
 #endif
 #ifndef MyAppDefaultDir
 #define MyAppDefaultDir "{localappdata}\Programs\AfterThemed"
+#endif
+#ifndef MyAppMutex
+#define MyAppMutex "AfterThemed.App"
 #endif
 
 [Setup]
@@ -40,7 +43,7 @@ WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
-AppMutex=AfterThemed.App
+AppMutex={#MyAppMutex}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

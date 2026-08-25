@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using DvauiThemeEditor;
 
@@ -19,6 +21,8 @@ internal static class Program
             PostCommitVerificationFailureRestoresTheOriginal, failures);
         Run("rollback failure retains both failures and the backup path",
             RollbackFailureRetainsBothFailuresAndTheBackupPath, failures);
+        Run("rollback rejects a backup changed after verification",
+            RollbackRejectsBackupChangedAfterVerification, failures);
         Run("native install reports round-trip through JSON",
             NativeInstallReportsRoundTripThroughJson, failures);
         Run("a requested native install report is mandatory",
@@ -41,6 +45,10 @@ internal static class Program
             RestoreCapturesSameVersionHotfixBeforeSelectingOriginal, failures);
         Run("legacy and current DROVER resource names are recognized",
             LegacyAndCurrentDroverResourceNamesAreRecognized, failures);
+        Run("hybrid Spectrum JSON and native theme engines patch together",
+            HybridSpectrumAndNativeThemeEnginesPatchTogether, failures);
+        Run("legacy native color loads accept DVA register and AVX encodings",
+            LegacyNativeColorLoadsAcceptDvaEncodings, failures);
         Run("installer upgrade guard matches the application mutex",
             InstallerUpgradeGuardMatchesApplicationMutex, failures);
 
@@ -177,6 +185,36 @@ internal static class Program
             Require(report.RollbackMessage?.Contains("unavailable", StringComparison.OrdinalIgnoreCase) == true,
                 $"rollback failure was lost: {report.RollbackMessage}");
             Require(!string.IsNullOrWhiteSpace(report.BackupPath), "verified backup path was not retained");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void RollbackRejectsBackupChangedAfterVerification()
+    {
+        var root = NewTempDirectory("installer-tampered-backup");
+        try
+        {
+            var input = Path.Combine(root, "generated.dll");
+            var target = Path.Combine(root, "dvaui.dll");
+            var backups = Path.Combine(root, "Backups");
+            File.WriteAllText(input, "generated");
+            File.WriteAllText(target, "original");
+
+            var report = NativeDllInstaller.Install(input, target, backups,
+                requireAfterEffectsClosed: false, new CorruptingAndTamperingBackupCommitter(backups));
+
+            Require(report.ExitCode == 2, $"expected exit 2, got {report.ExitCode}");
+            Require(report.Stage == "final verification", $"original failure was lost: {report.Stage}");
+            Require(report.RollbackAttempted, "rollback attempt was not recorded");
+            Require(!report.RollbackSucceeded, "tampered backup was incorrectly accepted for rollback");
+            Require(report.RollbackMessage?.Contains("did not match the verified backup",
+                    StringComparison.OrdinalIgnoreCase) == true,
+                $"backup tampering was not reported: {report.RollbackMessage}");
+            Require(File.ReadAllText(target) == "corrupted after commit",
+                "tampered backup was copied over the installed target");
         }
         finally
         {
@@ -493,12 +531,175 @@ internal static class Program
             "a non-theme JSON resource was accepted");
     }
 
+    private static void LegacyNativeColorLoadsAcceptDvaEncodings()
+    {
+        Require(ThemePatcher.RipRelativeColorLoadLength([0x0F, 0x10, 0x35, 0, 0, 0, 0]) == 7,
+            "DVA 14.6's non-xmm0 SSE color load was not recognized");
+        Require(ThemePatcher.RipRelativeColorLoadLength([0x0F, 0x28, 0x05, 0, 0, 0, 0]) == 7,
+            "the legacy movaps color load was not recognized");
+        Require(ThemePatcher.RipRelativeColorLoadLength([0x0F, 0x6F, 0x3D, 0, 0, 0, 0]) == 0,
+            "an unprefixed MMX load was incorrectly accepted as a 16-byte color reference");
+        Require(ThemePatcher.RipRelativeColorLoadLength([0xC5, 0xFA, 0x6F, 0x0D, 0, 0, 0, 0]) == 8,
+            "current DVA's AVX color load was not recognized");
+        Require(ThemePatcher.RipRelativeColorLoadLength([0xC5, 0xFE, 0x6F, 0x0D, 0, 0, 0, 0]) == 0,
+            "a 256-bit AVX load was incorrectly accepted as a 16-byte color reference");
+        Require(ThemePatcher.RipRelativeColorLoadLength([0x0F, 0x10, 0xC0, 0, 0, 0, 0]) == 0,
+            "a register-only SSE instruction was incorrectly accepted as a color reference");
+    }
+
+    private static void HybridSpectrumAndNativeThemeEnginesPatchTogether()
+    {
+        foreach (var (name, useAvx) in new[] { ("SSE", false), ("AVX", true) })
+        {
+            var fixture = CreateHybridDvauiFixture(useAvx);
+            var output = ThemePatcher.GenerateForTesting(fixture.Data, 14, $"14.6-test-{name}",
+                ThemeSettings.MaterialLavenderRich);
+
+            Require(fixture.Data.Length == output.Length, $"{name}: PE size changed");
+            Require(Math.Abs(BitConverter.ToSingle(output, fixture.NativeColorOffset) -
+                             ThemeSettings.MaterialLavenderRich.Background.R / 255f) < .000001f,
+                $"{name}: native red channel was not patched");
+            Require(Math.Abs(BitConverter.ToSingle(output, fixture.NativeColorOffset + 4) -
+                             ThemeSettings.MaterialLavenderRich.Background.G / 255f) < .000001f,
+                $"{name}: native green channel was not patched");
+            Require(Math.Abs(BitConverter.ToSingle(output, fixture.NativeColorOffset + 8) -
+                             ThemeSettings.MaterialLavenderRich.Background.B / 255f) < .000001f,
+                $"{name}: native blue channel was not patched");
+            Require(Math.Abs(BitConverter.ToSingle(fixture.Data, fixture.NativeColorOffset) - 38f / 255f) <
+                    .000001f,
+                $"{name}: the source fixture was mutated");
+
+            var json = Encoding.UTF8.GetString(output, fixture.JsonOffset, fixture.JsonSize);
+            var mapped = $"rgb({ThemeSettings.MaterialLavenderRich.Background.R}, " +
+                         $"{ThemeSettings.MaterialLavenderRich.Background.G}, " +
+                         $"{ThemeSettings.MaterialLavenderRich.Background.B})";
+            Require(json.Split(mapped, StringSplitOptions.None).Length - 1 == 8,
+                $"{name}: Spectrum JSON colors were not patched alongside the native color");
+            Require(!json.Contains("rgb(38, 38, 38)", StringComparison.Ordinal),
+                $"{name}: original Spectrum JSON colors remain");
+        }
+    }
+
+    private static HybridDvauiFixture CreateHybridDvauiFixture(bool useAvx)
+    {
+        const int peOffset = 0x80;
+        const int optionalHeader = peOffset + 24;
+        const int sectionTable = optionalHeader + 0xF0;
+        const int functionOffset = 0x500;
+        const uint functionRva = 0x1100;
+        const int resourceBase = 0x800;
+        const int jsonOffset = 0xA00;
+        const int jsonSize = 0x300;
+        const int nativeColorOffset = 0xE00;
+        const uint nativeColorRva = 0x4000;
+
+        var data = new byte[0x1000];
+        data[0] = (byte)'M';
+        data[1] = (byte)'Z';
+        WriteInt32(data, 0x3C, peOffset);
+        WriteUInt32(data, peOffset, 0x00004550);
+        WriteUInt16(data, peOffset + 4, 0x8664);
+        WriteUInt16(data, peOffset + 6, 4);
+        WriteUInt16(data, peOffset + 20, 0xF0);
+        WriteUInt16(data, optionalHeader, 0x20B);
+        WriteUInt64(data, optionalHeader + 24, 0x0000000180000000);
+        WriteUInt32(data, optionalHeader + 108, 16);
+        WriteUInt32(data, optionalHeader + 112, 0x2000);
+        WriteUInt32(data, optionalHeader + 116, 0x100);
+        WriteUInt32(data, optionalHeader + 128, 0x3000);
+        WriteUInt32(data, optionalHeader + 132, 0x600);
+
+        WriteSection(data, sectionTable, 0, ".text", 0x1000, 0x400, 0x200, 0x60000020);
+        WriteSection(data, sectionTable, 1, ".rdata", 0x2000, 0x600, 0x200, 0x40000040);
+        WriteSection(data, sectionTable, 2, ".rsrc", 0x3000, 0x800, 0x600, 0x40000040);
+        WriteSection(data, sectionTable, 3, ".data", 0x4000, 0xE00, 0x200, 0xC0000040);
+
+        WriteUInt32(data, 0x600 + 16, 1);
+        WriteUInt32(data, 0x600 + 20, 1);
+        WriteUInt32(data, 0x600 + 24, 1);
+        WriteUInt32(data, 0x600 + 28, 0x2040);
+        WriteUInt32(data, 0x600 + 32, 0x2048);
+        WriteUInt32(data, 0x600 + 36, 0x2050);
+        WriteUInt32(data, 0x640, functionRva);
+        WriteUInt32(data, 0x648, 0x2060);
+        WriteUInt16(data, 0x650, 0);
+        Encoding.ASCII.GetBytes("?InitializeColors@Theme@ui@dvaui@@QEAAXXZ\0").CopyTo(data, 0x660);
+
+        var instructionLength = useAvx ? 8 : 7;
+        if (useAvx)
+            new byte[] { 0xC5, 0xFA, 0x6F, 0x0D }.CopyTo(data, functionOffset);
+        else
+            new byte[] { 0x0F, 0x10, 0x35 }.CopyTo(data, functionOffset);
+        WriteInt32(data, functionOffset + instructionLength - 4,
+            checked((int)(nativeColorRva - (functionRva + instructionLength))));
+        data[functionOffset + instructionLength] = 0xC3;
+
+        WriteUInt16(data, resourceBase + 12, 1);
+        WriteUInt32(data, resourceBase + 16, 0x80000100);
+        WriteUInt32(data, resourceBase + 20, 0x80000020);
+        WriteUInt16(data, resourceBase + 0x20 + 12, 1);
+        WriteUInt32(data, resourceBase + 0x30, 0x80000110);
+        WriteUInt32(data, resourceBase + 0x34, 0x80000040);
+        WriteUInt16(data, resourceBase + 0x40 + 14, 1);
+        WriteUInt32(data, resourceBase + 0x50, 1033);
+        WriteUInt32(data, resourceBase + 0x54, 0x60);
+        WriteUInt32(data, resourceBase + 0x60, 0x3200);
+        WriteUInt32(data, resourceBase + 0x64, jsonSize);
+        WriteResourceString(data, resourceBase + 0x100, "JSON");
+        WriteResourceString(data, resourceBase + 0x110, "DNA-VARS");
+
+        data.AsSpan(jsonOffset, jsonSize).Fill((byte)' ');
+        var properties = Enumerable.Range(0, 8)
+            .Select(index => $"\"spectrum-test-color-{index}\":\"rgb(38, 38, 38)\"");
+        Encoding.UTF8.GetBytes("{" + string.Join(',', properties) + "}").CopyTo(data, jsonOffset);
+        WriteSingle(data, nativeColorOffset, 38f / 255f);
+        WriteSingle(data, nativeColorOffset + 4, 38f / 255f);
+        WriteSingle(data, nativeColorOffset + 8, 38f / 255f);
+        WriteSingle(data, nativeColorOffset + 12, 1f);
+        return new HybridDvauiFixture(data, nativeColorOffset, jsonOffset, jsonSize);
+    }
+
+    private static void WriteSection(byte[] data, int sectionTable, int index, string name, uint rva,
+        uint rawOffset, uint rawSize, uint characteristics)
+    {
+        var offset = sectionTable + index * 40;
+        Encoding.ASCII.GetBytes(name).CopyTo(data, offset);
+        WriteUInt32(data, offset + 8, rawSize);
+        WriteUInt32(data, offset + 12, rva);
+        WriteUInt32(data, offset + 16, rawSize);
+        WriteUInt32(data, offset + 20, rawOffset);
+        WriteUInt32(data, offset + 36, characteristics);
+    }
+
+    private static void WriteResourceString(byte[] data, int offset, string value)
+    {
+        WriteUInt16(data, offset, checked((ushort)value.Length));
+        Encoding.Unicode.GetBytes(value).CopyTo(data, offset + 2);
+    }
+
+    private static void WriteSingle(byte[] data, int offset, float value) =>
+        WriteInt32(data, offset, BitConverter.SingleToInt32Bits(value));
+
+    private static void WriteUInt16(byte[] data, int offset, ushort value) =>
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(offset, 2), value);
+
+    private static void WriteUInt32(byte[] data, int offset, uint value) =>
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset, 4), value);
+
+    private static void WriteUInt64(byte[] data, int offset, ulong value) =>
+        BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(offset, 8), value);
+
+    private static void WriteInt32(byte[] data, int offset, int value) =>
+        BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset, 4), value);
+
     private static void InstallerUpgradeGuardMatchesApplicationMutex()
     {
         var installerScript = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "AfterThemed.iss"));
-        Require(installerScript.Contains($"AppMutex={ApplicationLifetime.UpgradeMutexName}",
+        Require(installerScript.Contains($"#define MyAppMutex \"{ApplicationLifetime.UpgradeMutexName}\"",
                 StringComparison.Ordinal),
-            "the installer and application use different upgrade mutex names");
+            "the installer and application use different default upgrade mutex names");
+        Require(installerScript.Contains("AppMutex={#MyAppMutex}", StringComparison.Ordinal),
+            "the installer does not enforce its configured upgrade mutex");
         Require(installerScript.Contains("ComparePackedVersion(InstalledPackedVersion, SetupPackedVersion)",
                 StringComparison.Ordinal),
             "the installer does not compare semantic versions before uninstalling");
@@ -566,4 +767,18 @@ internal static class Program
             File.Delete(Directory.EnumerateFiles(backupDirectory, "dvaui-*.dll").Single());
         }
     }
+
+    private sealed class CorruptingAndTamperingBackupCommitter(string backupDirectory)
+        : NativeDllInstaller.IAtomicCommitter
+    {
+        public void Replace(string stagedPath, string targetPath)
+        {
+            File.Move(stagedPath, targetPath, true);
+            File.WriteAllText(targetPath, "corrupted after commit");
+            File.WriteAllText(Directory.EnumerateFiles(backupDirectory, "dvaui-*.dll").Single(),
+                "tampered backup");
+        }
+    }
+
+    private sealed record HybridDvauiFixture(byte[] Data, int NativeColorOffset, int JsonOffset, int JsonSize);
 }

@@ -4,6 +4,14 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.8 - 2026-08-24
+
+### Fixed
+
+- Transitional DVA builds now patch Spectrum JSON and the native base-theme engine together, preventing Adobe's dark frame from remaining around a themed Home surface.
+- Legacy native color discovery now recognizes the SSE register variants used by DVA 14.6 and the AVX encoding used by current DVA builds.
+- DLL rollback is pinned to the originally verified backup hash so a backup changed after verification is never restored.
+
 ## 1.3.7 - 2026-08-24
 
 ### Fixed
@@ -61,6 +69,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.8]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.8
 [1.3.7]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.7
 [1.3.6]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.6
 [1.3.1]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.1
