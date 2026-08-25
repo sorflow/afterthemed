@@ -105,6 +105,23 @@ public static class ThemePatcher
     {
         var data = File.ReadAllBytes(source);
         var plan = ResolvePlan(data, source);
+        ApplyPlan(data, plan, settings, fontFamily, textReplacements);
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        File.WriteAllBytes(output, data);
+        return Sha256(output);
+    }
+
+    internal static byte[] GenerateForTesting(byte[] source, int major, string version, ThemeSettings settings)
+    {
+        var data = (byte[])source.Clone();
+        var plan = ResolvePlan(data, version, major);
+        ApplyPlan(data, plan, settings, null, null);
+        return data;
+    }
+
+    private static void ApplyPlan(byte[] data, DvauiPatchPlan plan, ThemeSettings settings, string? fontFamily,
+        IReadOnlyList<TextReplacement>? textReplacements)
+    {
         var sourceTheme = DetectSourceTheme(data, plan);
         foreach (var table in plan.FloatTables)
             for (var i = 0; i < table.Length; i++)
@@ -135,9 +152,6 @@ public static class ThemePatcher
         ApplyJsonResources(data, plan.JsonResources, settings, sourceTheme);
         if (!string.IsNullOrWhiteSpace(fontFamily)) ApplyFontFamily(data, plan.Name, fontFamily.Trim());
         if (textReplacements is { Count: > 0 }) ApplyTextReplacements(data, textReplacements);
-        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        File.WriteAllBytes(output, data);
-        return Sha256(output);
     }
 
     public static string Inventory(string source)
@@ -171,7 +185,6 @@ public static class ThemePatcher
 
     private static DvauiPatchPlan ResolvePlan(byte[] data, string source)
     {
-        var pe = new DvauiPeImage(data);
         var version = "unknown";
         var major = 0;
         try
@@ -184,14 +197,21 @@ public static class ThemePatcher
         {
             // Version metadata is diagnostic only; structural validation remains authoritative.
         }
+        return ResolvePlan(data, version, major);
+    }
+
+    private static DvauiPatchPlan ResolvePlan(byte[] data, string version, int major)
+    {
         if (major is < 11 or > 26)
             throw new InvalidDataException($"This Adobe DVA version is outside the supported CC 2018–2026 range (detected version: {version}). No changes were made.");
 
+        var pe = new DvauiPeImage(data);
         var floatTables = FindSpectrumFloatTables(data, pe);
         var jsonResources = FindSpectrumJsonResources(data, pe);
-        var legacyColors = floatTables.Length == 0 && jsonResources.Length == 0
-            ? FindLegacyThemeColors(data, pe)
-            : [];
+        // Transitional DVA builds can use Spectrum JSON for Home/HTML surfaces
+        // while the native application frame still comes from Theme::InitializeColors.
+        // Discover both engines independently so hybrid layouts stay coherent.
+        var legacyColors = FindLegacyThemeColors(data, pe);
         if (floatTables.Length == 0 && jsonResources.Length == 0 && legacyColors.Length == 0)
             throw new InvalidDataException($"A safe DVAUI theme structure was not found for Adobe DVA {version}. No changes were made.");
 
@@ -292,11 +312,10 @@ public static class ThemePatcher
         var available = Math.Min(1024, data.Length - functionOffset - 7);
         for (var i = 0; i < available; i++)
         {
-            if (data[functionOffset + i] != 0x0F ||
-                data[functionOffset + i + 1] is not (0x10 or 0x28) ||
-                data[functionOffset + i + 2] != 0x05) continue;
-            var displacement = BitConverter.ToInt32(data, functionOffset + i + 3);
-            var targetRva = (long)functionRva + i + 7 + displacement;
+            var instructionLength = RipRelativeColorLoadLength(data.AsSpan(functionOffset + i));
+            if (instructionLength == 0) continue;
+            var displacement = BitConverter.ToInt32(data, functionOffset + i + instructionLength - 4);
+            var targetRva = (long)functionRva + i + instructionLength + displacement;
             if (targetRva is <= 0 or > uint.MaxValue) continue;
             int target;
             try { target = pe.RvaToOffset((uint)targetRva); }
@@ -310,6 +329,22 @@ public static class ThemePatcher
             colors.Add(target);
         }
         return colors.Order().ToArray();
+    }
+
+    internal static int RipRelativeColorLoadLength(ReadOnlySpan<byte> instruction)
+    {
+        if (instruction.Length >= 7 && instruction[0] == 0x0F &&
+            instruction[1] is 0x10 or 0x28 && (instruction[2] & 0xC7) == 0x05)
+            return 7;
+        if (instruction.Length >= 8 && instruction[0] == 0xC5 &&
+            (instruction[1] & 0x7C) == 0x78 && (instruction[3] & 0xC7) == 0x05)
+        {
+            var opcode = instruction[2];
+            var mandatoryPrefix = instruction[1] & 0x03;
+            if (opcode is 0x10 or 0x28 || opcode == 0x6F && mandatoryPrefix is 0x01 or 0x02)
+                return 8;
+        }
+        return 0;
     }
 
     private static void ApplyJsonResources(byte[] data, IReadOnlyList<PeResource> resources, ThemeSettings settings,
