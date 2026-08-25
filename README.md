@@ -7,7 +7,7 @@
 <p align="center"><strong>A controlled way to rebuild the After Effects interface around your own palette.</strong></p>
 
 <p align="center">
-  AfterThemed brings native DVAUI colors, interface typography, and CEP panel styling into one Windows workspace—with a preview before the first file is touched and a verified path back to the original.
+  AfterThemed brings native colors, interface typography, and CEP panel styling into one Windows workspace—with a preview before the first file is touched and a verified path back to the original.
 </p>
 
 <p align="center">
