@@ -4,6 +4,13 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.12 - 2026-08-25
+
+### Fixed
+
+- Installing a theme no longer fails with "Access to the path is denied" when the installed `dvaui.dll` carries the read-only attribute, which Adobe ships or a later Creative Cloud repair sets. `File.Move` refuses to overwrite a read-only destination regardless of the caller's actual permissions, so the elevated installer reached the DLL-replacement stage, made no change, and reported the target as denied. The attribute is now cleared before the target is replaced and before rollback restores it.
+- A read-only installed target no longer leaves every backup read-only too. `File.Copy` carries the source's attributes onto the copy, so a read-only `dvaui.dll` was silently producing read-only backups that AfterThemed's own rollback and restore would later need to replace.
+
 ## 1.3.11 - 2026-08-25
 
 ### Added
@@ -95,6 +102,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
+[1.3.12]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.12
 [1.3.11]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.11
 [1.3.10]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.10
 [1.3.9]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.9

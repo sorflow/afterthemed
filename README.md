@@ -89,7 +89,7 @@ Keep an external backup of important installations. Product updates, security so
 
 ## Install
 
-1. Download `AfterThemed-Setup-1.3.11.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
+1. Download `AfterThemed-Setup-1.3.12.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
 2. Review and accept the proprietary EULA in Setup.
 3. Launch AfterThemed and confirm the detected After Effects installation.
 4. Build a palette or import an existing theme.

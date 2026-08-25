@@ -131,7 +131,25 @@ internal static class NativeDllInstaller
     {
         internal static readonly FileAtomicCommitter Instance = new();
 
-        public void Replace(string stagedPath, string targetPath) => File.Move(stagedPath, targetPath, true);
+        public void Replace(string stagedPath, string targetPath)
+        {
+            ClearReadOnly(targetPath);
+            File.Move(stagedPath, targetPath, true);
+        }
+    }
+
+    /// <summary>
+    /// File.Move refuses to overwrite a read-only destination with "Access to the path is
+    /// denied", regardless of the caller's actual permissions. Adobe ships or later marks
+    /// dvaui.dll read-only after some Creative Cloud repairs, so this must run before every
+    /// move that overwrites the installed target, including rollback.
+    /// </summary>
+    private static void ClearReadOnly(string path)
+    {
+        if (!File.Exists(path)) return;
+        var attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
     }
 
     internal static NativeInstallReport Install(
@@ -177,6 +195,10 @@ internal static class NativeDllInstaller
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
             backupPath = Path.Combine(backupDirectory, $"dvaui-{stamp}-{Guid.NewGuid():N}.dll");
             File.Copy(fullTarget, backupPath, false);
+            // File.Copy carries the source's attributes onto the copy, so a read-only installed
+            // target would leave every backup read-only too. A backup is archival, not installed
+            // software, and AfterThemed's own rollback and restore must be free to replace it.
+            ClearReadOnly(backupPath);
             verifiedBackupHash = OriginalDllStore.Sha256(backupPath);
             actualHash = OriginalDllStore.Sha256(fullTarget);
             if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
@@ -231,6 +253,7 @@ internal static class NativeDllInstaller
                         if (!string.Equals(verifiedBackupHash, OriginalDllStore.Sha256(rollbackTemporaryPath),
                                 StringComparison.Ordinal))
                             throw new IOException("The staged rollback DLL did not match the verified backup.");
+                        ClearReadOnly(fullTarget);
                         File.Move(rollbackTemporaryPath, fullTarget, true);
                         rollbackTemporaryPath = null;
                         rollbackSucceeded = string.Equals(

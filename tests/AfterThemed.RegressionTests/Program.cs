@@ -18,6 +18,8 @@ internal static class Program
             NativeInstallerReportsTheFailingStage, failures);
         Run("native installer success is backed up and verified",
             NativeInstallerSuccessIsBackedUpAndVerified, failures);
+        Run("a read-only installed target is cleared before replacement",
+            ReadOnlyInstalledTargetIsClearedBeforeReplacement, failures);
         Run("post-commit verification failure restores the original",
             PostCommitVerificationFailureRestoresTheOriginal, failures);
         Run("rollback failure retains both failures and the backup path",
@@ -148,6 +150,40 @@ internal static class Program
                 "installed target does not match the generated source");
             var backup = Directory.EnumerateFiles(backups, "dvaui-*.dll").Single();
             Require(File.ReadAllText(backup) == "original", "backup does not contain the original target");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void ReadOnlyInstalledTargetIsClearedBeforeReplacement()
+    {
+        // Adobe ships, or a Creative Cloud repair later marks, dvaui.dll read-only. File.Move
+        // refuses to overwrite a read-only destination with "Access to the path is denied"
+        // regardless of the caller's actual permissions, so this must be cleared first.
+        var root = NewTempDirectory("installer-readonly-target");
+        try
+        {
+            var input = Path.Combine(root, "generated.dll");
+            var target = Path.Combine(root, "dvaui.dll");
+            var backups = Path.Combine(root, "Backups");
+            File.WriteAllText(input, "generated");
+            File.WriteAllText(target, "original");
+            File.SetAttributes(target, File.GetAttributes(target) | FileAttributes.ReadOnly);
+
+            var report = NativeDllInstaller.Install(input, target, backups,
+                requireAfterEffectsClosed: false);
+
+            Require(report.Succeeded, $"install failed during {report.Stage}: {report.Message}");
+            Require(OriginalDllStore.Sha256(input) == OriginalDllStore.Sha256(target),
+                "a read-only installed target was not replaced");
+            Require((File.GetAttributes(target) & FileAttributes.ReadOnly) == 0,
+                "the installed target was left read-only after replacement");
+            var backup = Directory.EnumerateFiles(backups, "dvaui-*.dll").Single();
+            Require((File.GetAttributes(backup) & FileAttributes.ReadOnly) == 0,
+                "File.Copy carried the read-only attribute onto the backup, which AfterThemed's " +
+                "own rollback and restore must be free to replace");
         }
         finally
         {
