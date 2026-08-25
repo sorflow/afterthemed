@@ -4,10 +4,13 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+## 1.3.6 - 2026-08-24
+
 ### Changed
 
 - The repository now tracks source and documentation instead of compiled installers.
 - Windows builds are verified by GitHub Actions; official binaries remain in GitHub Releases.
+- Repository history and release references no longer retain packaged executables.
 
 ## 1.3.5 - 2026-08-24
 
@@ -48,5 +51,5 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - Persistent runtime palette overrides for host-theme scripts, CSS-in-JS, inline SVG colors, and canvas strokes.
 - Verified panel backups with byte-exact restoration.
 
-[1.3.5]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.5
+[1.3.6]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.6
 [1.3.1]: https://github.com/sorflow/afterthemed/releases/tag/v1.3.1
