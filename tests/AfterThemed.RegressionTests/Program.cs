@@ -68,8 +68,18 @@ internal static class Program
             InstallerUpgradeGuardMatchesApplicationMutex, failures);
         Run("an imported dark palette keeps its own dark surfaces",
             ImportedDarkPaletteKeepsItsDarkSurfaces, failures);
+        Run("release order follows the release year, not the dvaui file version",
+            ReleaseOrderFollowsReleaseYearNotFileVersion, failures);
+        Run("a browsed dvaui.dll is described with its release and companion",
+            BrowsedDllIsDescribedWithReleaseAndCompanion, failures);
+        Run("a diagnostics bundle never carries an Adobe binary",
+            DiagnosticsBundleNeverCarriesAnAdobeBinary, failures);
         Run("an imported light palette keeps its own light surfaces",
             ImportedLightPaletteKeepsItsLightSurfaces, failures);
+        Run("update checker detects a newer GitHub release",
+            UpdateCheckerDetectsNewerGithubRelease, failures);
+        Run("update checker ignores current and prerelease versions",
+            UpdateCheckerIgnoresCurrentAndPrereleaseVersions, failures);
 
         foreach (var failure in failures) Console.Error.WriteLine($"FAIL: {failure}");
         if (failures.Count != 0) return 1;
@@ -1134,6 +1144,180 @@ internal static class Program
         {
             return exception;
         }
+    }
+
+    /// <summary>
+    /// Measured on a real machine: After Effects CC 2019 ships dvaui 16.1.2.55 while After Effects
+    /// 2021 ships dvaui 15.4.1.5. Ordering the picker by file version therefore offers a 2019 release
+    /// ahead of a 2021 one, which is the same version-is-not-release trap that already had to be
+    /// fixed in companion detection.
+    /// </summary>
+    private static void ReleaseOrderFollowsReleaseYearNotFileVersion()
+    {
+        var cc2019 = SyntheticInstall("After Effects CC 2019", new Version(16, 1, 2, 55));
+        var ae2021 = SyntheticInstall("After Effects 2021", new Version(15, 4, 1, 5));
+        var ae2025 = SyntheticInstall("After Effects 2025", new Version(25, 6, 0, 101));
+
+        var ordered = AfterEffectsCatalog.InReleaseOrder([cc2019, ae2021, ae2025]);
+
+        Require(ordered[0].DisplayName == "After Effects 2025", $"expected 2025 first, got {ordered[0].DisplayName}");
+        Require(ordered[1].DisplayName == "After Effects 2021",
+            $"expected 2021 ahead of CC 2019 despite its lower dvaui version, got {ordered[1].DisplayName}");
+        Require(ordered[2].DisplayName == "After Effects CC 2019", $"expected CC 2019 last, got {ordered[2].DisplayName}");
+    }
+
+    private static AfterEffectsInstall SyntheticInstall(string displayName, Version version)
+    {
+        var root = Path.Combine("C:\\Program Files\\Adobe", $"Adobe {displayName}");
+        return AfterEffectsCatalog.Describe(Path.Combine(root, "Support Files", "dvaui.dll"))
+               ?? new AfterEffectsInstall(
+                   Path.Combine(root, "Support Files", "dvaui.dll"), root, displayName, version, null, "Synthetic")
+               {
+                   ReleaseYear = ReleaseYearOf(displayName)
+               };
+    }
+
+    private static int ReleaseYearOf(string displayName)
+    {
+        foreach (var token in displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            if (token.Length == 4 && int.TryParse(token, out var year)) return year;
+        return 0;
+    }
+
+    private static void BrowsedDllIsDescribedWithReleaseAndCompanion()
+    {
+        var root = NewTempDirectory("catalog-describe");
+        try
+        {
+            var supportFiles = Path.Combine(root, "Adobe After Effects 2024", "Support Files");
+            Directory.CreateDirectory(supportFiles);
+            var dll = Path.Combine(supportFiles, "dvaui.dll");
+            File.WriteAllText(dll, "dvaui");
+
+            var withoutCompanion = AfterEffectsCatalog.Describe(dll);
+            Require(withoutCompanion is not null, "a real dvaui.dll was not described");
+            Require(withoutCompanion!.DisplayName == "After Effects 2024",
+                $"expected the folder to name the release, got {withoutCompanion.DisplayName}");
+            Require(withoutCompanion.ReleaseYear == 2024, $"expected 2024, got {withoutCompanion.ReleaseYear}");
+            Require(!withoutCompanion.HasNativeCompanion, "a missing AfterFXLib.dll was reported as present");
+
+            File.WriteAllText(Path.Combine(supportFiles, "AfterFXLib.dll"), "companion");
+            var withCompanion = AfterEffectsCatalog.Describe(dll);
+            Require(withCompanion!.HasNativeCompanion, "an adjacent AfterFXLib.dll was not detected");
+
+            Require(AfterEffectsCatalog.Describe(Path.Combine(supportFiles, "missing.dll")) is null,
+                "a nonexistent path was described as an installation");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    /// dvaui.dll and AfterFXLib.dll are Adobe's proprietary binaries. The bug reporter describes them
+    /// but must never package them, because the bundle is meant to be attached to a public issue.
+    /// </summary>
+    private static void DiagnosticsBundleNeverCarriesAnAdobeBinary()
+    {
+        var root = NewTempDirectory("bug-report");
+        try
+        {
+            var supportFiles = Path.Combine(root, "Adobe After Effects 2025", "Support Files");
+            Directory.CreateDirectory(supportFiles);
+            var dll = Path.Combine(supportFiles, "dvaui.dll");
+            const string secretBytes = "PROPRIETARY-ADOBE-CONTENT";
+            File.WriteAllText(dll, secretBytes);
+
+            var reports = Path.Combine(root, "Reports");
+            Directory.CreateDirectory(reports);
+            File.WriteAllText(Path.Combine(reports, "install.json"), "{\"Stage\":\"DLL replacement\"}");
+
+            var bundle = BugReportBuilder.Create(new BugReportContext(
+                dll, null, root, reports, "Test-Theme", "Nord", "[00:00:00]  something failed"));
+
+            Require(File.Exists(bundle.BundlePath), "no diagnostics bundle was written");
+            Require(bundle.Summary.Contains(OriginalDllStore.Sha256(dll), StringComparison.OrdinalIgnoreCase),
+                "the report omits the dvaui.dll SHA-256 that identifies the build");
+            Require(bundle.Summary.Contains("DLL replacement", StringComparison.Ordinal),
+                "the report omits the last install report, which names the failing stage");
+            Require(!bundle.Summary.Contains(secretBytes, StringComparison.Ordinal),
+                "the report embedded dvaui.dll content");
+
+            using var archive = System.IO.Compression.ZipFile.OpenRead(bundle.BundlePath);
+            foreach (var entry in archive.Entries)
+            {
+                Require(!entry.FullName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase),
+                    $"the bundle packaged an Adobe binary: {entry.FullName}");
+                using var reader = new StreamReader(entry.Open());
+                Require(!reader.ReadToEnd().Contains(secretBytes, StringComparison.Ordinal),
+                    $"the bundle embedded dvaui.dll content in {entry.FullName}");
+            }
+            Require(archive.Entries.Any(entry => entry.FullName == "report.md"), "the bundle has no report.md");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void UpdateCheckerDetectsNewerGithubRelease()
+    {
+        const string json = """
+        {
+          "tag_name": "v1.3.13",
+          "html_url": "https://github.com/sorflow/afterthemed/releases/tag/v1.3.13",
+          "draft": false,
+          "prerelease": false,
+          "assets": [
+            {
+              "name": "AfterThemed-Setup-1.3.13.exe",
+              "browser_download_url": "https://github.com/sorflow/afterthemed/releases/download/v1.3.13/AfterThemed-Setup-1.3.13.exe"
+            },
+            {
+              "name": "source.zip",
+              "browser_download_url": "https://github.com/sorflow/afterthemed/archive/refs/tags/v1.3.13.zip"
+            }
+          ]
+        }
+        """;
+
+        var update = UpdateChecker.ParseLatestRelease(json, new Version(1, 3, 12));
+
+        Require(update is not null, "newer release was not detected");
+        Require(update!.LatestVersion == new Version(1, 3, 13), $"wrong version: {update.LatestVersion}");
+        Require(update.DownloadUrl.EndsWith("AfterThemed-Setup-1.3.13.exe", StringComparison.Ordinal),
+            $"installer asset was not selected: {update.DownloadUrl}");
+    }
+
+    private static void UpdateCheckerIgnoresCurrentAndPrereleaseVersions()
+    {
+        Require(UpdateChecker.ParseVersion("v1.3.12+abc1234") == new Version(1, 3, 12),
+            "version parser did not strip tag prefix and build metadata");
+
+        const string currentJson = """
+        {
+          "tag_name": "v1.3.12",
+          "html_url": "https://github.com/sorflow/afterthemed/releases/tag/v1.3.12",
+          "draft": false,
+          "prerelease": false,
+          "assets": []
+        }
+        """;
+        Require(UpdateChecker.ParseLatestRelease(currentJson, new Version(1, 3, 12)) is null,
+            "current version was reported as an update");
+
+        const string prereleaseJson = """
+        {
+          "tag_name": "v9.0.0-beta",
+          "html_url": "https://github.com/sorflow/afterthemed/releases/tag/v9.0.0-beta",
+          "draft": false,
+          "prerelease": true,
+          "assets": []
+        }
+        """;
+        Require(UpdateChecker.ParseLatestRelease(prereleaseJson, new Version(1, 3, 12)) is null,
+            "prerelease was reported as a stable update");
     }
 
     private static string NewTempDirectory(string name)

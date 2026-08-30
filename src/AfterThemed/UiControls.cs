@@ -258,6 +258,7 @@ internal sealed class RoundedPanel : Panel
     private Color borderColor = Color.Transparent;
     private int borderWidth = 1;
     private bool speckle;
+    private bool clipToRadius = true;
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int Radius
@@ -289,6 +290,25 @@ internal sealed class RoundedPanel : Panel
         set { speckle = value; Invalidate(); }
     }
 
+    /// <summary>
+    /// Whether the rounded outline is enforced by a clipping region. A region is one bit per pixel,
+    /// so it saws the antialiased curve into a hard step and a tightly rounded panel ends up with
+    /// visible flat notches where its ends should close. Turn this off for a panel whose children
+    /// stay inside the curve: the host surface is repainted first and the rounded body is then drawn
+    /// antialiased over it, which is how <see cref="MacButton"/> keeps its own pill edges smooth.
+    /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool ClipToRadius
+    {
+        get => clipToRadius;
+        set
+        {
+            clipToRadius = value;
+            UpdateRoundedRegion();
+            Invalidate();
+        }
+    }
+
     public RoundedPanel()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
@@ -301,10 +321,24 @@ internal sealed class RoundedPanel : Panel
         UpdateRoundedRegion();
     }
 
+    /// <summary>
+    /// An auto-sized panel reaches its final width during layout rather than through a resize, which
+    /// left the clipping region sized for the panel's earlier, narrower bounds: the rounded end was
+    /// cut off by a straight edge while the border still painted at full width.
+    /// </summary>
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        UpdateRoundedRegion();
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        // Without a clipping region the control's own rectangle is still painted behind this, so the
+        // host surface has to be laid back down before the rounded body is drawn over it.
+        if (!clipToRadius) SpeckleField.PaintHost(e.Graphics, this);
         using var path = RoundRect(ClientRectangle, Radius);
         if (Speckle)
         {
@@ -319,10 +353,12 @@ internal sealed class RoundedPanel : Panel
         }
         if (BorderColor != Color.Transparent && BorderWidth > 0)
         {
+            // Kept in float space and shrunk by the same amount the radius loses, so the stroke stays
+            // concentric with the fill and a fully rounded panel keeps true semicircular ends.
             var inset = Math.Max(1, BorderWidth) / 2f;
             using var borderPath = RoundRect(
-                Rectangle.Round(RectangleF.Inflate(ClientRectangle, -inset, -inset)),
-                Math.Max(0, Radius - (int)Math.Ceiling(inset)));
+                RectangleF.Inflate(ClientRectangle, -inset, -inset),
+                Math.Max(0f, Radius - inset));
             using var pen = new Pen(BorderColor, BorderWidth);
             e.Graphics.DrawPath(pen, borderPath);
         }
@@ -331,9 +367,11 @@ internal sealed class RoundedPanel : Panel
 
     private void UpdateRoundedRegion()
     {
-        if (Width <= 0 || Height <= 0 || Radius <= 0)
+        if (!clipToRadius || Width <= 0 || Height <= 0 || Radius <= 0)
         {
+            var stale = Region;
             Region = null;
+            stale?.Dispose();
             return;
         }
 
@@ -342,6 +380,30 @@ internal sealed class RoundedPanel : Panel
         var previous = Region;
         Region = next;
         previous?.Dispose();
+    }
+
+    /// <summary>
+    /// Float-precision rounded rectangle. The integer overload has to round its radius, so a border
+    /// inset by half a pixel from a stadium-shaped panel ends up with a radius shorter than half its
+    /// own height and closes its ends with a small flat cut instead of a true semicircle.
+    /// </summary>
+    internal static GraphicsPath RoundRect(RectangleF bounds, float radius)
+    {
+        var path = new GraphicsPath();
+        if (bounds.Width <= 0 || bounds.Height <= 0) return path;
+        var effectiveRadius = Math.Clamp(radius, 0, Math.Min(bounds.Width, bounds.Height) / 2f);
+        if (effectiveRadius <= 0)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+        var d = effectiveRadius * 2f;
+        path.AddArc(bounds.Left, bounds.Top, d, d, 180, 90);
+        path.AddArc(bounds.Right - d, bounds.Top, d, d, 270, 90);
+        path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     internal static GraphicsPath RoundRect(Rectangle bounds, int radius)
@@ -440,6 +502,12 @@ internal sealed class AfterThemedMark : Control
     }
 }
 
+/// <summary>
+/// The outlined glyph a pill button carries on its trailing edge. Each one states what the action
+/// does, so the badges stay meaningful rather than decorative.
+/// </summary>
+internal enum PillBadge { None, Plus, Minus, Info, Alert, Download }
+
 internal class MacButton : Button
 {
     private bool hovering;
@@ -448,6 +516,18 @@ internal class MacButton : Button
     public int Radius { get; set; } = 14;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Color HoverColor { get; set; } = UiPalette.PanelHover;
+    /// <summary>
+    /// When set, the label moves to the leading edge and this glyph is drawn in a thin circle on the
+    /// trailing edge, giving the pill navigation look.
+    /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public PillBadge Badge { get; set; } = PillBadge.None;
+    /// <summary>
+    /// Drops the drop shadow and the outline, so an unselected item disappears into the surface it
+    /// sits on and only the selected one reads as a filled control.
+    /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool Flat { get; set; }
 
     public MacButton()
     {
@@ -485,7 +565,7 @@ internal class MacButton : Button
         var body = new Rectangle(0, 0, Width - 1, Height - 2);
         if (body.Width <= 0 || body.Height <= 0) return;
 
-        if (!pressed)
+        if (!pressed && !Flat)
         {
             using var shadowPath = RoundedPanel.RoundRect(new Rectangle(0, 2, body.Width, body.Height), Radius);
             using var shadow = new SolidBrush(Color.FromArgb(42, 0, 0, 0));
@@ -498,13 +578,117 @@ internal class MacButton : Button
         using (var fill = new SolidBrush(face))
             g.FillPath(fill, path);
 
-        using (var pen = new Pen(Color.FromArgb(38, ForeColor), 1f))
+        if (!Flat)
+        {
+            using var pen = new Pen(Color.FromArgb(38, ForeColor), 1f);
             g.DrawPath(pen, path);
+        }
 
         var label = body;
         if (pressed) label.Offset(0, 1);
-        TextRenderer.DrawText(g, Text, Font, label, ForeColor,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        if (Badge == PillBadge.None)
+        {
+            UiText.Draw(g, Text, Font, label, ForeColor);
+            return;
+        }
+
+        var diameter = Math.Max(12, Math.Min(18, label.Height - 12));
+        var badge = new Rectangle(
+            label.Right - diameter - 11,
+            label.Y + (label.Height - diameter) / 2,
+            diameter, diameter);
+        var textArea = Rectangle.FromLTRB(label.X + 14, label.Y, badge.Left - 7, label.Bottom);
+        UiText.Draw(g, Text, Font, textArea, ForeColor, StringAlignment.Near);
+        DrawBadge(g, badge, ForeColor);
+    }
+
+    private void DrawBadge(Graphics g, Rectangle circle, Color color)
+    {
+        // The ring is deliberately lighter than the label so it reads as a quiet affordance rather
+        // than competing with the button text.
+        using var pen = new Pen(Color.FromArgb(185, color), 1.25f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        using var brush = new SolidBrush(Color.FromArgb(185, color));
+        g.DrawEllipse(pen, circle);
+
+        var cx = circle.X + circle.Width / 2f;
+        var cy = circle.Y + circle.Height / 2f;
+        var arm = circle.Width * .24f;
+
+        switch (Badge)
+        {
+            case PillBadge.Plus:
+                g.DrawLine(pen, cx - arm, cy, cx + arm, cy);
+                g.DrawLine(pen, cx, cy - arm, cx, cy + arm);
+                break;
+            case PillBadge.Minus:
+                g.DrawLine(pen, cx - arm, cy, cx + arm, cy);
+                break;
+            case PillBadge.Download:
+                g.DrawLine(pen, cx, cy - arm * 1.1f, cx, cy + arm * .45f);
+                g.DrawLine(pen, cx - arm * .58f, cy - arm * .1f, cx, cy + arm * .5f);
+                g.DrawLine(pen, cx + arm * .58f, cy - arm * .1f, cx, cy + arm * .5f);
+                g.DrawLine(pen, cx - arm * .72f, cy + arm * 1.15f, cx + arm * .72f, cy + arm * 1.15f);
+                break;
+            case PillBadge.Info:
+                g.FillEllipse(brush, cx - .9f, cy - arm * 1.25f, 1.8f, 1.8f);
+                g.DrawLine(pen, cx, cy - arm * .25f, cx, cy + arm * 1.1f);
+                break;
+            case PillBadge.Alert:
+                g.DrawLine(pen, cx, cy - arm * 1.25f, cx, cy + arm * .35f);
+                g.FillEllipse(brush, cx - .9f, cy + arm * .95f, 1.8f, 1.8f);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// Draws interface text through GDI+ so it is antialiased.
+///
+/// TextRenderer.DrawText goes through GDI, which drops antialiasing when it draws into the
+/// alpha-capable buffer these double-buffered, transparency-supporting controls paint into: the
+/// glyphs come out hard-edged, with no intermediate pixels along a stem. GDI also ignores
+/// Graphics.TextRenderingHint, so the ClearTypeGridFit hint these controls set never applied to
+/// their own labels. Grayscale antialiasing is used rather than ClearType because subpixel
+/// rendering fringes noticeably on light-on-dark text.
+/// </summary>
+internal static class UiText
+{
+    internal static void Draw(Graphics g, string text, Font font, Rectangle bounds, Color color,
+        StringAlignment horizontal = StringAlignment.Center,
+        StringAlignment vertical = StringAlignment.Center,
+        bool ellipsis = true)
+    {
+        if (string.IsNullOrEmpty(text) || bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        var previousHint = g.TextRenderingHint;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        using var format = new StringFormat(StringFormatFlags.NoWrap)
+        {
+            Alignment = horizontal,
+            LineAlignment = vertical,
+            Trimming = ellipsis ? StringTrimming.EllipsisCharacter : StringTrimming.None
+        };
+        using var brush = new SolidBrush(color);
+        g.DrawString(text, font, brush, bounds, format);
+        g.TextRenderingHint = previousHint;
+    }
+
+    /// <summary>
+    /// Width this text occupies when drawn by <see cref="Draw"/>, so callers can size a control to
+    /// its label instead of guessing a fixed width and clipping it.
+    /// </summary>
+    internal static int Measure(string text, Font font)
+    {
+        if (string.IsNullOrEmpty(text)) return 0;
+        using var bitmap = new Bitmap(1, 1);
+        using var g = Graphics.FromImage(bitmap);
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        return (int)Math.Ceiling(g.MeasureString(text, font).Width);
     }
 }
 
@@ -931,8 +1115,7 @@ internal sealed class MacComboBox : Control
 
         var label = new Rectangle(body.X + 10, body.Y, tab.Left - body.X - 15, body.Height);
         if (label.Width > 0)
-            TextRenderer.DrawText(g, Text, Font, label, ForeColor,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            UiText.Draw(g, Text, Font, label, ForeColor, StringAlignment.Near);
     }
 
     private void DrawChevronTab(Graphics g, Rectangle tab)
@@ -1169,9 +1352,8 @@ internal sealed class ComboPopup : Form
         }
 
         var label = new Rectangle(rect.X + 14, rect.Y, rect.Width - 34, rect.Height);
-        TextRenderer.DrawText(g, owner.Items[index], font, label,
-            selected || hot ? UiPalette.Text : UiPalette.Muted,
-            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        UiText.Draw(g, owner.Items[index], font, label,
+            selected || hot ? UiPalette.Text : UiPalette.Muted, StringAlignment.Near);
 
         if (!selected) return;
         using var check = new Pen(UiPalette.Accent, 1.6f)
@@ -1219,10 +1401,8 @@ internal sealed class InspectorTabs : TabControl
         var rect = GetTabRect(e.Index);
         using var back = new SolidBrush(selected ? UiPalette.PanelRaised : UiPalette.Panel);
         e.Graphics.FillRectangle(back, rect);
-        TextRenderer.DrawText(e.Graphics, TabPages[e.Index].Text.ToUpperInvariant(),
-            tabFont, rect,
-            selected ? UiPalette.Text : UiPalette.Muted,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        UiText.Draw(e.Graphics, TabPages[e.Index].Text.ToUpperInvariant(), tabFont, rect,
+            selected ? UiPalette.Text : UiPalette.Muted, ellipsis: false);
         if (selected)
         {
             using var accent = new SolidBrush(UiPalette.Accent);

@@ -4,6 +4,24 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+### Added
+
+- After Effects installations are now discovered across the whole machine instead of only the two default `Program Files` folders. The uninstall registry, Adobe's own `InstallPath` keys, and the Adobe layout on every fixed drive are merged and de-duplicated, so an installation moved off the system drive is found.
+- A startup chooser names every detected release and confirms which one to theme. It appears when there is a choice to make — several installations, or no usable remembered target — and the button beside `INSTALLED TARGET` reopens it at any time. That button previously opened a bare file dialog; the chooser lists the detected releases and still offers a manual browse.
+- A `REPORT BUG` button collects a diagnostics bundle and opens a prefilled GitHub issue. AfterThemed never uploads `dvaui.dll` or `AfterFXLib.dll`: the report describes them by version, size, SHA-256, and theme-resource layout, which is what identifies a build, while Adobe's binaries stay on the user's PC. Nothing is sent until the user posts the issue from their own account.
+- `--list-installs` prints what the detection engine sees, so a missed installation can be reported without screenshots.
+- AfterThemed now checks GitHub for the latest release when the app opens. If a newer version is available, a popup offers the installer download and release page.
+
+### Fixed
+
+- Release ordering no longer follows the `dvaui.dll` file version. After Effects CC 2019 ships dvaui 16.1 while After Effects 2021 ships dvaui 15.4, so a version-ordered list offered a 2019 release ahead of a 2021 one. Ordering now follows the release year recorded in the installation folder.
+- The version shown in About and in bug reports no longer includes the full commit hash appended to the informational version. The commit is kept in short form, which still identifies the exact build.
+- Interface text is no longer drawn without antialiasing. Buttons, tabs, dropdown rows, and labels were rendered through GDI, which drops antialiasing when it draws into the alpha-capable buffer these double-buffered controls paint into, leaving hard-edged glyphs; GDI also ignores the `ClearTypeGridFit` hint those controls set, so the intended smoothing never applied. Text now renders through GDI+ with grayscale antialiasing, which does not fringe on light-on-dark text.
+- The title bar actions are now a pill navigation: one rounded track holding fully rounded buttons, each with an outlined glyph stating what it does, and the install action filled with the brand accent.
+- A tightly rounded panel no longer shows flat notches where its ends should close. The rounded outline was enforced with a clipping region, which is one bit per pixel and saws the antialiased curve into a hard step; a panel whose children stay inside the curve now paints its rounded body antialiased over the host surface instead.
+- Pill labels are measured rather than assigned a fixed width, so a renamed button cannot silently ellipsize.
+- The title bar no longer clips its buttons. The action strip sized itself to a fixed percentage of the window, which was narrower than the buttons needed at the default window size and clipped every one of them at the minimum size. The bar's outer columns now take exactly the width their contents need.
+
 ## 1.3.12 - 2026-08-25
 
 ### Fixed

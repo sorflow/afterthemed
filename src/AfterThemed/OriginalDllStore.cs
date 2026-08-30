@@ -7,62 +7,6 @@ using System.Text.Json;
 
 namespace DvauiThemeEditor;
 
-internal sealed record AfterEffectsInstallation(string DllPath, Version Version);
-
-internal static class AfterEffectsLocator
-{
-    internal static IReadOnlyList<AfterEffectsInstallation> FindInstalled()
-    {
-        var found = new Dictionary<string, AfterEffectsInstallation>(StringComparer.OrdinalIgnoreCase);
-        foreach (var programFiles in new[]
-                 {
-                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
-                 }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            var adobe = Path.Combine(programFiles, "Adobe");
-            if (!Directory.Exists(adobe)) continue;
-            try
-            {
-                foreach (var directory in Directory.EnumerateDirectories(adobe, "Adobe After Effects *", SearchOption.TopDirectoryOnly))
-                {
-                    var dll = Path.Combine(directory, "Support Files", "dvaui.dll");
-                    if (!File.Exists(dll)) continue;
-                    var fullPath = Path.GetFullPath(dll);
-                    found[fullPath] = new AfterEffectsInstallation(fullPath, ReadVersion(fullPath));
-                }
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // A locked Adobe directory should not hide other readable installs.
-            }
-            catch (IOException)
-            {
-                // A concurrently updating Creative Cloud install may be transiently unavailable.
-            }
-        }
-
-        return found.Values
-            .OrderByDescending(install => install.Version)
-            .ThenBy(install => install.DllPath, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static Version ReadVersion(string path)
-    {
-        try
-        {
-            var info = FileVersionInfo.GetVersionInfo(path);
-            return new Version(Math.Max(0, info.FileMajorPart), Math.Max(0, info.FileMinorPart),
-                Math.Max(0, info.FileBuildPart), Math.Max(0, info.FilePrivatePart));
-        }
-        catch
-        {
-            return new Version(0, 0);
-        }
-    }
-}
-
 internal static class OriginalDllStore
 {
     internal static string CaptureIfMissing(

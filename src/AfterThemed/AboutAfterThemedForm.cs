@@ -78,7 +78,7 @@ internal sealed class AboutAfterThemedForm : Form
         AddDismissControl(headerMark);
 
         AddDismissLabel("AfterThemed", new Rectangle(74, 27, 430, 35), 19f, FontStyle.Bold, Primary);
-        AddDismissLabel($"Version {Application.ProductVersion}  ·  {DateTime.Now.Year}",
+        AddDismissLabel($"Version {ApplicationLifetime.DisplayVersion()}  ·  {DateTime.Now.Year}",
             new Rectangle(74, 69, 320, 20), 8.2f, FontStyle.Bold, Primary);
 
         AddDismissLabel(
@@ -127,7 +127,7 @@ internal sealed class AboutAfterThemedForm : Form
             ForeColor = color,
             Text = text,
             TextAlign = alignment,
-            UseCompatibleTextRendering = false
+            UseCompatibleTextRendering = true
         };
         AddDismissControl(label);
         return label;

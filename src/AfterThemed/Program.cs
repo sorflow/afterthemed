@@ -1,7 +1,25 @@
+using System.Runtime.InteropServices;
+
 namespace DvauiThemeEditor;
 
 static class Program
 {
+    /// <summary>
+    /// AfterThemed is a WinExe, so it owns no console. Console-mode diagnostics have to borrow the
+    /// console of whichever shell launched them or their output goes nowhere.
+    /// </summary>
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int processId);
+
+    private static void UseParentConsole()
+    {
+        const int attachParentProcess = -1;
+        if (!AttachConsole(attachParentProcess)) return;
+        var standardOutput = Console.OpenStandardOutput();
+        var writer = new StreamWriter(standardOutput) { AutoFlush = true };
+        Console.SetOut(writer);
+    }
+
     [STAThread]
     static int Main(string[] args)
     {
@@ -53,6 +71,23 @@ static class Program
         if (args.Length == 1 && args[0] == "--panel-smoke")
             return PanelThemeManager.RunSmokeTest() ? 0 : 9;
 
+        // Support aid: prints what the detection engine sees, so a user can report their real
+        // layout without screenshots when an installation is missed.
+        if (args.Length == 1 && args[0] == "--list-installs")
+        {
+            UseParentConsole();
+            var installs = AfterEffectsCatalog.Discover();
+            Console.WriteLine($"{installs.Count} After Effects installation(s) detected.");
+            foreach (var install in installs)
+                Console.WriteLine(
+                    $"  {install.DisplayName}\n" +
+                    $"    dvaui.dll : {install.DllPath}\n" +
+                    $"    version   : {install.Version}\n" +
+                    $"    companion : {(install.HasNativeCompanion ? install.CompanionPath : "none")}\n" +
+                    $"    found via : {install.DiscoverySource}");
+            return installs.Count > 0 ? 0 : 1;
+        }
+
         if (args.Length is 2 or 3 && args[0] == "--ui-snapshot")
         {
             ApplicationConfiguration.Initialize();
@@ -74,7 +109,27 @@ static class Program
                 return 0;
             }
 
-            using var form = new Form1();
+            if (args.Length == 3 && args[2].Equals("SELECT AFTER EFFECTS", StringComparison.OrdinalIgnoreCase))
+                return SnapshotDialog(new AfterEffectsPickerForm(AfterEffectsCatalog.Discover(), null), args[1]);
+
+            if (args.Length == 3 && args[2].Equals("REPORT BUG", StringComparison.OrdinalIgnoreCase))
+            {
+                var previewRoot = Path.Combine(Path.GetTempPath(), $"afterthemed-bug-preview-{Guid.NewGuid():N}");
+                var bundle = BugReportBuilder.Create(new BugReportContext(
+                    AfterEffectsCatalog.Discover().FirstOrDefault()?.DllPath, null, previewRoot,
+                    Path.Combine(previewRoot, "Reports"), "Preview-Theme", "Nord",
+                    "[00:00:00]  preview log line"));
+                return SnapshotDialog(new BugReportForm(bundle), args[1]);
+            }
+
+            if (args.Length == 3 && args[2].Equals("UPDATE AVAILABLE", StringComparison.OrdinalIgnoreCase))
+                return SnapshotDialog(new UpdateAvailableForm(new UpdateInfo(
+                    new Version(1, 3, 13), "v1.3.13",
+                    "https://github.com/sorflow/afterthemed/releases/tag/v1.3.13",
+                    "https://github.com/sorflow/afterthemed/releases/download/v1.3.13/AfterThemed-Setup-1.3.13.exe")),
+                    args[1]);
+
+            using var form = new Form1(suppressStartupPrompts: true);
             form.ShowInTaskbar = false;
             form.StartPosition = FormStartPosition.Manual;
             form.Location = new Point(-32000, -32000);
@@ -178,6 +233,25 @@ static class Program
 
         ApplicationConfiguration.Initialize();
         Application.Run(new Form1());
+        return 0;
+    }
+
+    /// <summary>Renders a modal offscreen so its layout can be reviewed without a user present.</summary>
+    private static int SnapshotDialog(Form dialog, string imagePath)
+    {
+        using (dialog)
+        {
+            dialog.ShowInTaskbar = false;
+            dialog.StartPosition = FormStartPosition.Manual;
+            dialog.Location = new Point(-32000, -32000);
+            dialog.Show();
+            Application.DoEvents();
+            dialog.PerformLayout();
+            using var bitmap = new Bitmap(dialog.ClientSize.Width, dialog.ClientSize.Height);
+            dialog.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dialog.ClientSize));
+            bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
+            dialog.Hide();
+        }
         return 0;
     }
 

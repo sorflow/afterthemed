@@ -26,8 +26,10 @@ public partial class Form1 : Form
     private readonly TextBox textReplacements = NewTextBox(multiline: true);
     private readonly Dictionary<string, TextBox> colorBoxes = new();
     private IReadOnlyList<Color> importedColors = Array.Empty<Color>();
+    private readonly bool suppressStartupPrompts;
     private VerbatimColorPickerForm? activeColorPicker;
     private Panel? titleBar;
+    private bool updateCheckStarted;
 
     private const string AdobeDefaultFont = "Adobe Clean · original";
 
@@ -67,14 +69,40 @@ public partial class Form1 : Form
     private string PanelReportFile => Path.Combine(DataRoot, "panel-operation.json");
     private string LastTargetFile => Path.Combine(DataRoot, "last-target.txt");
 
-    public Form1()
+    /// <summary>
+    /// <paramref name="suppressStartupPrompts"/> keeps the startup chooser closed for the offscreen
+    /// snapshot runs, which have no user to answer a modal.
+    /// </summary>
+    public Form1(bool suppressStartupPrompts = false)
     {
+        this.suppressStartupPrompts = suppressStartupPrompts;
         InitializeComponent();
         var executableIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         if (executableIcon is not null) Icon = executableIcon;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BuildUi();
         LoadDefaults();
+    }
+
+    protected override async void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        if (suppressStartupPrompts || updateCheckStarted) return;
+
+        updateCheckStarted = true;
+        try
+        {
+            var update = await UpdateChecker.CheckLatestAsync(UpdateChecker.CurrentVersion());
+            if (update is null || IsDisposed) return;
+
+            Log($"Update available · {update.TagName}");
+            using var form = new UpdateAvailableForm(update);
+            form.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Log($"Update check skipped · {ex.Message}");
+        }
     }
 
     private void BuildUi()
@@ -89,7 +117,10 @@ public partial class Form1 : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        // 56 = the title bar's own 3px margins + its 6px vertical padding + the 38px action track.
+        // At 50 the track was six pixels taller than the space it sat in and its bottom outline was
+        // clipped away.
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(shell);
 
@@ -116,12 +147,16 @@ public partial class Form1 : Form
     {
         var bar = new SpeckledPanel { Dock = DockStyle.Fill, BackColor = UiPalette.Window, Padding = new Padding(14, 6, 10, 6) };
         var layout = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = UiPalette.Window };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        // The outer columns take exactly the width their contents need and the title absorbs the
+        // rest. Percentages cannot hold a fixed set of buttons: the action strip needs about 444px,
+        // which a 33% column only provides on a window wider than 1340, so the leftmost button was
+        // clipped at the default size and every button was clipped at the minimum size.
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.Controls.Add(layout);
 
-        var left = new SpeckledFlow { Dock = DockStyle.Fill, WrapContents = false, BackColor = UiPalette.Window, Margin = Padding.Empty };
+        var left = new SpeckledFlow { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, BackColor = UiPalette.Window, Margin = Padding.Empty };
         var dots = new WindowDotGroup();
         dots.AddDot(Color.FromArgb(255, 95, 87), WindowDotGlyph.Close, Close);
         dots.AddDot(Color.FromArgb(254, 188, 46), WindowDotGlyph.Minimize, Minimize);
@@ -138,18 +173,53 @@ public partial class Form1 : Form
         centerTitle.TextAlign = ContentAlignment.MiddleCenter;
         layout.Controls.Add(centerTitle, 1, 0);
 
-        var actions = new SpeckledFlow
+        // The actions sit on a single rounded track, so the group reads as one navigation cluster
+        // instead of four loose buttons. The track is the surface container tone and the pills sit a
+        // step above it, keeping the elevation order the rest of the interface uses.
+        const int trackHeight = 38;
+        // The pill row is a rectangle inside a stadium-shaped track. At the row's top and bottom the
+        // track's curve has already come in about 7px, so a 4px inset would push the row's square
+        // corners outside the curve. 8px keeps the whole row within the rounded ends.
+        const int trackPadX = 8;
+        const int trackPadY = 4;
+        var track = new RoundedPanel
+        {
+            Radius = trackHeight / 2,
+            // The track is the raised surface and the unselected pills share it, matching the way the
+            // reference groups its items inside one container with no internal outlines.
+            BackColor = UiPalette.PanelRaised,
+            BorderColor = UiPalette.Border,
+            Padding = new Padding(trackPadX, trackPadY, trackPadX, trackPadY),
+            Margin = Padding.Empty,
+            // Stretched to the row rather than given a fixed height: the title bar decides how much
+            // vertical space exists, and a fixed height left the container's bottom edge outside it,
+            // so its lower outline was cut off. RoundRect clamps the radius to half the real height,
+            // so the ends stay true semicircles whatever the row turns out to be.
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right,
+            // The pills stay inside the curve, so the ends can be drawn antialiased instead of being
+            // sawn flat by a clipping region.
+            ClipToRadius = false
+        };
+        // A plain flow, not the speckled one: the track paints a flat fill, and a speckled
+        // rectangle inside it showed as a straight-edged seam across the track's rounded ends.
+        var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            BackColor = UiPalette.Window,
+            BackColor = UiPalette.PanelRaised,
             Margin = Padding.Empty
         };
-        AddButton(actions, "INSTALL", GenerateAndInstall, true, 84);
-        AddButton(actions, "GENERATE", GenerateVariant, false, 88);
-        AddButton(actions, "ABOUT AFTERTHEMED", ShowAboutAfterThemed, false, 144);
-        layout.Controls.Add(actions, 2, 0);
+        AddPillButton(actions, "INSTALL", GenerateAndInstall, PillBadge.Download, accent: true);
+        AddPillButton(actions, "GENERATE", GenerateVariant, PillBadge.Plus);
+        AddPillButton(actions, "ABOUT", ShowAboutAfterThemed, PillBadge.Info);
+        AddPillButton(actions, "REPORT BUG", ReportBug, PillBadge.Alert);
+        // The track is sized from the pills it holds. Auto-sizing it inside an auto-sizing cell left
+        // its width ambiguous, and the panel was clipped short of its own rounded end.
+        var pillsWidth = actions.Controls.Cast<Control>().Sum(pill => pill.Width + pill.Margin.Horizontal);
+        track.Size = new Size(pillsWidth + trackPadX * 2, trackHeight);
+        track.Controls.Add(actions);
+        layout.Controls.Add(track, 2, 0);
 
         foreach (Control control in new Control[] { bar, layout, product, centerTitle })
         {
@@ -255,7 +325,10 @@ public partial class Form1 : Form
         layout.Controls.Add(Field("PRESET", preset), 0, 2);
         source.ReadOnly = true;
         layout.Controls.Add(PathField("PRESERVED ORIGINAL", source, () => OpenFolder(Originals)), 0, 3);
-        layout.Controls.Add(PathField("INSTALLED TARGET", target, PickTargetDll), 0, 4);
+        // The target's own button opens the install chooser, which lists every detected release and
+        // still offers a manual browse. A separate button in the utilities row below would not fit
+        // beside the existing three without clipping the last one.
+        layout.Controls.Add(PathField("INSTALLED TARGET", target, ChangeInstall), 0, 4);
         var utilities = new SpeckledFlow { Dock = DockStyle.Fill, BackColor = UiPalette.Panel, WrapContents = false, Margin = new Padding(0, 4, 0, 3) };
         AddButton(utilities, "INVENTORY", Inventory, false, 92);
         AddButton(utilities, "RESTORE", Restore, false, 78);
@@ -617,10 +690,13 @@ public partial class Form1 : Form
         Directory.CreateDirectory(PanelBackups);
 
         var savedTarget = File.Exists(LastTargetFile) ? File.ReadAllText(LastTargetFile).Trim() : string.Empty;
-        var installations = AfterEffectsLocator.FindInstalled();
-        var selectedTarget = File.Exists(savedTarget)
-            ? savedTarget
-            : installations.FirstOrDefault()?.DllPath ?? string.Empty;
+        var installations = AfterEffectsCatalog.Discover();
+        Log(installations.Count == 0
+            ? "No After Effects installation was detected on this PC."
+            : $"Detected {installations.Count} After Effects installation(s): " +
+              string.Join(", ", installations.Select(install => install.DisplayName)));
+
+        var selectedTarget = ChooseStartupTarget(installations, savedTarget);
         target.Text = selectedTarget;
         if (File.Exists(selectedTarget))
         {
@@ -648,6 +724,70 @@ public partial class Form1 : Form
         preset.SelectedIndex = 5;
         RefreshPanelDiscovery();
         Log($"Ready · Originals, variants, and backups are stored in {DataRoot}");
+    }
+
+    /// <summary>
+    /// Decides the target AfterThemed opens on. The chooser appears whenever there is a real choice
+    /// to make — several installations, or no usable remembered target — and stays out of the way on
+    /// a machine with one installation that was already confirmed.
+    /// </summary>
+    private string ChooseStartupTarget(IReadOnlyList<AfterEffectsInstall> installations, string savedTarget)
+    {
+        var remembered = File.Exists(savedTarget) ? savedTarget : string.Empty;
+        if (suppressStartupPrompts)
+            return remembered.Length > 0 ? remembered : installations.FirstOrDefault()?.DllPath ?? string.Empty;
+
+        if (remembered.Length > 0 && installations.Count <= 1) return remembered;
+
+        var chosen = ShowInstallPicker(remembered);
+        if (chosen is not null) return chosen;
+
+        // Cancelling keeps whatever was already known rather than leaving the editor with no target.
+        Log("Install selection cancelled · keeping the previous target.");
+        return remembered.Length > 0 ? remembered : installations.FirstOrDefault()?.DllPath ?? string.Empty;
+    }
+
+    private string? ShowInstallPicker(string? preferredDllPath)
+    {
+        using var picker = new AfterEffectsPickerForm(AfterEffectsCatalog.Discover(), preferredDllPath);
+        return picker.ShowDialog(IsHandleCreated ? this : null) == DialogResult.OK
+            ? picker.SelectedDllPath
+            : null;
+    }
+
+    /// <summary>Reopens the chooser from the toolbar so the target can be changed at any time.</summary>
+    private void ChangeInstall()
+    {
+        var chosen = ShowInstallPicker(target.Text.Trim());
+        if (chosen is null) return;
+        target.Text = chosen;
+        Try(() =>
+        {
+            var original = EnsureOriginalSnapshot();
+            var install = AfterEffectsCatalog.Describe(chosen);
+            Log(install is null
+                ? $"Target selected · Preserved source: {original}"
+                : $"Target selected · {install.DisplayName} · Preserved source: {original}");
+            RefreshPanelDiscovery();
+        });
+    }
+
+    private void ReportBug()
+    {
+        Try(() =>
+        {
+            var bundle = BugReportBuilder.Create(new BugReportContext(
+                TargetDllPath: target.Text.Trim(),
+                PreservedOriginalPath: source.Text.Trim(),
+                DataRoot: DataRoot,
+                ReportsDirectory: Reports,
+                ThemeName: SafeName(),
+                PresetName: preset.Text,
+                LogText: log.Text));
+            Log($"Diagnostics bundle written: {bundle.BundlePath}");
+            using var form = new BugReportForm(bundle);
+            form.ShowDialog(this);
+        });
     }
 
     private void ImportTheme()
@@ -733,7 +873,7 @@ public partial class Form1 : Form
                     output.Companion);
             }
             else InstallElevated(output.NativePath, "Installation", companion: output.Companion);
-        });
+        }, reportOnFailure: true);
     }
 
     private void InstallElevated(string input, string operation, PanelInstallAction panelAction = PanelInstallAction.None,
@@ -865,7 +1005,7 @@ public partial class Form1 : Form
                 File.Exists(panelManifest) ? PanelInstallAction.Restore : PanelInstallAction.None,
                 companion: companion);
             Log("After Effects and all safely modified CEP panel files have been returned to their preserved originals.");
-        });
+        }, reportOnFailure: true);
     }
 
     private void PaintPreview(object? sender, PaintEventArgs e)
@@ -1083,6 +1223,10 @@ public partial class Form1 : Form
         ForeColor = color,
         BackColor = Color.Transparent,
         AutoSize = false,
+        // GDI+ text rendering, so these labels are antialiased over the painted chrome. The GDI
+        // default renders them hard-edged on a transparent background, which is what made the
+        // small uppercase labels look pixelated next to the rest of the interface.
+        UseCompatibleTextRendering = true,
         // Inter stays crisp at compact desktop-control sizes; the uppercase
         // micro-labels stay at 7.5pt to keep fitting inside the colour cards.
         Font = UiFonts.Sans(bold ? 7.5f : 8.5f, bold ? FontStyle.Bold : FontStyle.Regular)
@@ -1098,6 +1242,37 @@ public partial class Form1 : Form
             BackColor = accent ? UiPalette.Accent : light ? UiPalette.LightAction : UiPalette.PanelRaised,
             ForeColor = accent ? UiPalette.OnAccent : light ? UiPalette.LightActionText : UiPalette.Text,
             HoverColor = accent ? UiPalette.AccentHover : light ? UiPalette.LightActionHover : UiPalette.PanelHover
+        };
+        button.Click += (_, _) => action();
+        panel.Controls.Add(button);
+    }
+
+    /// <summary>
+    /// A fully rounded pill carrying a trailing badge glyph, used for the title bar's action group.
+    /// The selected action is filled with the brand accent and the rest sit quietly on the track.
+    /// </summary>
+    private static void AddPillButton(FlowLayoutPanel panel, string text, Action action, PillBadge badge,
+        bool accent = false)
+    {
+        const int height = 30;
+        // Leading pad, label, gap, badge, trailing pad. The label is measured rather than assumed so
+        // renaming a button cannot silently ellipsize it.
+        var font = UiFonts.Sans(8.5f, FontStyle.Bold);
+        var width = 14 + UiText.Measure(text, font) + 7 + 18 + 11;
+        var button = new MacButton
+        {
+            Text = text,
+            Badge = badge,
+            Font = font,
+            Flat = true,
+            Size = new Size(width, height),
+            Radius = height / 2,
+            Margin = new Padding(0, 0, 2, 0),
+            // An unselected pill is the track's own colour, so the group reads as one surface with a
+            // single filled action on it rather than four outlined buttons.
+            BackColor = accent ? UiPalette.Accent : UiPalette.PanelRaised,
+            ForeColor = accent ? UiPalette.OnAccent : UiPalette.Text,
+            HoverColor = accent ? UiPalette.AccentHover : UiPalette.PanelHover
         };
         button.Click += (_, _) => action();
         panel.Controls.Add(button);
@@ -1239,23 +1414,6 @@ public partial class Form1 : Form
         return original;
     }
 
-    private void PickTargetDll()
-    {
-        using var dialog = new OpenFileDialog
-        {
-            Filter = "DVAUI DLL (dvaui.dll)|dvaui.dll|DLL files (*.dll)|*.dll|All files (*.*)|*.*",
-            FileName = target.Text
-        };
-        if (dialog.ShowDialog() != DialogResult.OK) return;
-        target.Text = dialog.FileName;
-        Try(() =>
-        {
-            var original = EnsureOriginalSnapshot();
-            Log($"Target selected · Preserved source: {original}");
-            RefreshPanelDiscovery();
-        });
-    }
-
     private void SaveLastTarget(string path)
     {
         Directory.CreateDirectory(DataRoot);
@@ -1287,7 +1445,17 @@ public partial class Form1 : Form
         };
         picker.ShowNear(this, anchor);
     }
-    private void Try(Action action) { try { action(); } catch (Exception ex) { Log("ERROR · " + ex.Message); MessageBox.Show(this, ex.Message, "AfterThemed by Drerachi", MessageBoxButtons.OK, MessageBoxIcon.Error); } }
+    private void Try(Action action, bool reportOnFailure = false)
+    {
+        try { action(); }
+        catch (Exception ex)
+        {
+            Log("ERROR · " + ex.Message);
+            MessageBox.Show(this, ex.Message, "AfterThemed by Drerachi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            // A failed patch is the case worth a report, and the diagnostics are already on disk.
+            if (reportOnFailure) ReportBug();
+        }
+    }
     private void Log(string text) => log.AppendText($"[{DateTime.Now:HH:mm:ss}]  {text}\r\n");
 
     private void DragWindow(object? sender, MouseEventArgs e)
