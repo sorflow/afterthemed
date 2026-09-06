@@ -238,6 +238,51 @@ public static class ThemePatcher
     {
         var data = File.ReadAllBytes(source);
         var plan = ResolvePlan(data, source);
+        var counts = PaletteCounts(data, plan);
+        var sb = new StringBuilder($"Source: {source}\r\nLayout: {plan.Name}\r\nSHA-256: {Sha256(source)}\r\nGenerated: {DateTime.Now:O}\r\nColor (RGBA)\tOccurrences\r\n");
+        foreach (var item in counts.OrderByDescending(x => x.Value).ThenBy(x => x.Key)) sb.AppendLine($"{item.Key}\t{item.Value}");
+        return sb.ToString();
+    }
+
+    // Read PE data only: never load a donor DLL as executable code or copy its binary layout.
+    public static ImportedTheme ExtractTheme(string source)
+    {
+        var data = File.ReadAllBytes(source);
+        return ExtractTheme(data, ResolvePlan(data, source), Path.GetFileNameWithoutExtension(source));
+    }
+
+    internal static ImportedTheme ExtractThemeForTesting(byte[] data, int major, string version) =>
+        ExtractTheme(data, ResolvePlan(data, version, major), "DLL theme");
+
+    private static ImportedTheme ExtractTheme(byte[] data, DvauiPatchPlan plan, string name)
+    {
+        var counts = PaletteCounts(data, plan);
+        var weighted = counts.Select(pair => (
+            Color: Color.FromArgb(int.Parse(pair.Key.Substring(1, 2), NumberStyles.HexNumber),
+                int.Parse(pair.Key.Substring(3, 2), NumberStyles.HexNumber),
+                int.Parse(pair.Key.Substring(5, 2), NumberStyles.HexNumber)),
+            Alpha: int.Parse(pair.Key.Substring(7, 2), NumberStyles.HexNumber), Count: pair.Value))
+            .Where(item => item.Alpha >= 128)
+            .GroupBy(item => item.Color.ToArgb())
+            .Select(group => (Color: group.First().Color, Count: group.Sum(item => item.Count)))
+            .OrderByDescending(item => item.Count).ThenBy(item => item.Color.ToArgb()).ToArray();
+        if (weighted.Length < 2)
+            throw new InvalidDataException("This DLL does not contain enough supported visible theme colors to import.");
+        var known = DetectSourceTheme(data, plan);
+        var colors = weighted.Select(item => item.Color).ToArray();
+        // Prefer a detected preset's semantic roles. Unknown themes use the most frequent colors
+        // rather than rare icons or nearly transparent resource entries as the palette suggestion.
+        var settings = known?.Settings ?? ThemeImporter.Suggest("DLL palette", colors.Take(32).ToArray());
+        return new ImportedTheme(known?.Name ?? name + " theme", colors, settings)
+        {
+            SourceDescription = known is null
+                ? $"Extracted {colors.Length} colors from {plan.Name}. Roles are inferred; review the preview before applying."
+                : $"Extracted {known.Name} from {plan.Name}. Preserved its color roles and mapping settings."
+        };
+    }
+
+    private static Dictionary<string, int> PaletteCounts(byte[] data, DvauiPatchPlan plan)
+    {
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var table in plan.FloatTables)
             for (var i = 0; i < table.Length; i++)
@@ -252,9 +297,21 @@ public static class ThemePatcher
             counts[key] = counts.GetValueOrDefault(key) + 1;
         }
         InventoryJsonResources(data, plan.JsonResources, counts);
-        var sb = new StringBuilder($"Source: {source}\r\nLayout: {plan.Name}\r\nSHA-256: {Sha256(source)}\r\nGenerated: {DateTime.Now:O}\r\nColor (RGBA)\tOccurrences\r\n");
-        foreach (var item in counts.OrderByDescending(x => x.Value).ThenBy(x => x.Key)) sb.AppendLine($"{item.Key}\t{item.Value}");
-        return sb.ToString();
+        return counts;
+    }
+
+    /// <summary>Diagnostic only: recognizes a DLL whose native color tables already match a built-in preset.</summary>
+    internal static string? DetectKnownTheme(string source)
+    {
+        try
+        {
+            var data = File.ReadAllBytes(source);
+            return DetectSourceTheme(data, ResolvePlan(data, source))?.Name;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     public static string Sha256(string path)

@@ -13,6 +13,7 @@ public partial class Form1 : Form
     private readonly TextBox source = NewTextBox();
     private readonly TextBox target = NewTextBox();
     private readonly TextBox themeName = NewTextBox();
+    private ThemeSettings? importedSettings;
     private readonly MacComboBox preset = NewComboBox();
     private readonly MacComboBox fontChoice = NewComboBox();
     private readonly CheckBox themePanels = NewCheckBox("Theme every detected CEP panel whenever a theme is installed", true);
@@ -81,7 +82,7 @@ public partial class Form1 : Form
         if (executableIcon is not null) Icon = executableIcon;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BuildUi();
-        LoadDefaults();
+        Try(LoadDefaults);
     }
 
     protected override async void OnShown(EventArgs e)
@@ -324,7 +325,7 @@ public partial class Form1 : Form
         preset.SelectedIndexChanged += (_, _) => ApplyPreset();
         layout.Controls.Add(Field("PRESET", preset), 0, 2);
         source.ReadOnly = true;
-        layout.Controls.Add(PathField("PRESERVED ORIGINAL", source, () => OpenFolder(Originals)), 0, 3);
+        layout.Controls.Add(PathField("PRESERVED ORIGINAL · AE VERSION LIBRARY", source, () => OpenFolder(Originals)), 0, 3);
         // The target's own button opens the install chooser, which lists every detected release and
         // still offers a manual browse. A separate button in the utilities row below would not fit
         // beside the existing three without clipping the last one.
@@ -689,6 +690,21 @@ public partial class Form1 : Form
         Directory.CreateDirectory(Reports);
         Directory.CreateDirectory(PanelBackups);
 
+        if (!OriginalLibraryLayout.OtherAppIsOpen())
+        {
+            try
+            {
+                var organization = OriginalLibraryLayout.Organize(Originals);
+                if (organization.Moved > 0) Log($"Organized {organization.Moved} original snapshots into AE release folders. DLL bytes were not changed.");
+                foreach (var warning in organization.Warnings) Log("Originals library · " + warning);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log("Originals organization deferred; existing backups are retained · " + ex.Message);
+            }
+        }
+        else Log("Close other AfterThemed windows and reopen to organize older original folders safely.");
+
         var savedTarget = File.Exists(LastTargetFile) ? File.ReadAllText(LastTargetFile).Trim() : string.Empty;
         var installations = AfterEffectsCatalog.Discover();
         Log(installations.Count == 0
@@ -733,7 +749,9 @@ public partial class Form1 : Form
     /// </summary>
     private string ChooseStartupTarget(IReadOnlyList<AfterEffectsInstall> installations, string savedTarget)
     {
-        var remembered = File.Exists(savedTarget) ? savedTarget : string.Empty;
+        var remembered = File.Exists(savedTarget) ||
+            OriginalDllStore.ExistingFor(savedTarget, Originals, requireAdobeSignature: false) is not null
+            ? savedTarget : string.Empty;
         if (suppressStartupPrompts)
             return remembered.Length > 0 ? remembered : installations.FirstOrDefault()?.DllPath ?? string.Empty;
 
@@ -792,7 +810,7 @@ public partial class Form1 : Form
 
     private void ImportTheme()
     {
-        using var dialog = new OpenFileDialog { Filter = "Theme files (*.theme;*.css;*.json;*.xml)|*.theme;*.css;*.json;*.xml|Windows themes (*.theme)|*.theme|CSS (*.css)|*.css|JSON (*.json)|*.json|XML (*.xml)|*.xml" };
+        using var dialog = new OpenFileDialog { Filter = "Theme files and DVAUI DLLs|*.theme;*.css;*.json;*.xml;*.dll|DVAUI theme DLL (*.dll)|*.dll|Windows themes (*.theme)|*.theme|CSS (*.css)|*.css|JSON (*.json)|*.json|XML (*.xml)|*.xml" };
         if (dialog.ShowDialog() != DialogResult.OK) return;
         Try(() =>
         {
@@ -800,9 +818,11 @@ public partial class Form1 : Form
             preset.SelectedIndex = BuiltInPresets.Length;
             themeName.Text = imported.Name;
             importedColors = imported.Colors;
+            importedSettings = imported.Suggested;
             SetColors(imported.Suggested);
             importStatus.Text = $"{Path.GetFileName(dialog.FileName).ToUpperInvariant()}  ·  {imported.Colors.Count} COLORS";
             Log($"Imported {dialog.FileName}\r\nMapped {imported.Colors.Count} unique colors onto solid Spectrum roles.");
+            if (imported.SourceDescription is not null) Log(imported.SourceDescription);
         });
     }
 
@@ -810,6 +830,7 @@ public partial class Form1 : Form
     {
         if (preset.SelectedIndex < 0 || preset.SelectedIndex >= BuiltInPresets.Length) return;
         var settings = BuiltInPresets[preset.SelectedIndex].Settings;
+        importedSettings = null;
         importedColors = Array.Empty<Color>();
         importStatus.Text = "BUILT-IN PRESET  ·  LIVE PREVIEW";
         SetColors(settings);
@@ -833,7 +854,7 @@ public partial class Form1 : Form
     {
         var selected = preset.SelectedIndex >= 0 && preset.SelectedIndex < BuiltInPresets.Length
             ? BuiltInPresets[preset.SelectedIndex].Settings
-            : null;
+            : importedSettings;
         return new(
             ReadColor("App Background"), ReadColor("Panel Color"), ReadColor("Raised Surface"), ReadColor("UI Text Color"),
             ReadColor("Primary Accent"), ReadColor("Secondary Accent"), ReadColor("Danger Accent"), cutoff.Value / 100f,
@@ -879,7 +900,7 @@ public partial class Form1 : Form
     private void InstallElevated(string input, string operation, PanelInstallAction panelAction = PanelInstallAction.None,
         string? panelConfiguration = null, LegacyAeThemeCompanion? companion = null)
     {
-        if (companion is not null)
+        if (companion is not null || operation == "Adobe original restore")
         {
             InstallThemeSetElevated(input, operation, panelAction, panelConfiguration, companion);
             return;
@@ -917,17 +938,17 @@ public partial class Form1 : Form
     }
 
     private void InstallThemeSetElevated(string nativeInput, string operation, PanelInstallAction panelAction,
-        string? panelConfiguration, LegacyAeThemeCompanion companion)
+        string? panelConfiguration, LegacyAeThemeCompanion? companion)
     {
         Directory.CreateDirectory(Reports);
         var id = $"{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
         var manifestPath = Path.Combine(Reports, $"theme-file-set-{id}.json");
         var reportPath = Path.Combine(Reports, $"theme-file-set-result-{id}.json");
-        var manifest = new ThemeFileSetManifest(Backups,
-        [
-            new ThemeFileInstall(companion.InputPath, companion.TargetPath),
-            new ThemeFileInstall(nativeInput, target.Text)
-        ]);
+        var files = new List<ThemeFileInstall>();
+        if (companion is not null) files.Add(new ThemeFileInstall(companion.InputPath, companion.TargetPath));
+        files.Add(new ThemeFileInstall(nativeInput, target.Text.Trim()));
+        var manifest = new ThemeFileSetManifest(Backups, files,
+            RestoreMissingTargets: operation == "Adobe original restore");
         ThemeFileSetStore.WriteManifest(manifestPath, manifest);
 
         var arguments = panelAction switch
@@ -968,7 +989,7 @@ public partial class Form1 : Form
         else if (process.ExitCode != 0)
             throw new InvalidOperationException($"{operation} failed or was cancelled.");
 
-        Log($"{operation} completed. Both native theme files were verified and backed up in {Backups}.");
+        Log($"{operation} completed. {files.Count} native theme file(s) verified. Pre-existing files were backed up in {Backups}.");
         try { File.Delete(manifestPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
         try { File.Delete(reportPath); } catch { /* Keep diagnostics when cleanup is blocked. */ }
     }
@@ -993,6 +1014,8 @@ public partial class Form1 : Form
             if (Process.GetProcessesByName("AfterFX").Length > 0) throw new InvalidOperationException("Close After Effects before restoring.");
             var targetPath = target.Text.Trim();
             if (targetPath.Length == 0) throw new InvalidOperationException("Select the installed After Effects dvaui.dll first.");
+            if (OriginalDllStore.ExistingFor(targetPath, Originals, requireAdobeSignature: false) is null)
+                _ = EnsureOriginalSnapshot();
             var restoreDll = OriginalDllStore.CreateRestoreDll(targetPath, Originals,
                 Path.Combine(Variants, "dvaui.restore-original.dll"));
             var companion = LegacyAeThemePatcher.CreateRestoreForDvaui(targetPath, Originals,
@@ -1407,7 +1430,22 @@ public partial class Form1 : Form
     {
         var targetPath = target.Text.Trim();
         if (targetPath.Length == 0) throw new InvalidOperationException("Select the installed After Effects dvaui.dll first.");
-        var original = OriginalDllStore.CaptureIfMissing(targetPath, Originals, out var captured);
+        string original;
+        bool captured;
+        try
+        {
+            original = OriginalDllStore.CaptureIfMissing(targetPath, Originals, out captured);
+        }
+        catch (InvalidDataException ex)
+        {
+            Log("Original needs recovery · " + ex.Message);
+            using var recovery = new OriginalRecoveryForm(targetPath, Originals);
+            if (recovery.ShowDialog(this) != DialogResult.OK || recovery.RecoveredOriginal is null)
+                throw new OperationCanceledException("Original recovery was cancelled.");
+            original = recovery.RecoveredOriginal;
+            captured = true;
+            Log("Recovered an Adobe-signed original from a matching backup.");
+        }
         source.Text = original;
         SaveLastTarget(targetPath);
         if (captured) Log($"Saved immutable original before customization: {original}");
@@ -1447,16 +1485,38 @@ public partial class Form1 : Form
     }
     private void Try(Action action, bool reportOnFailure = false)
     {
-        try { action(); }
+        // All GUI instances share the same variants and panel configuration. Serialize complete
+        // operations, including the elevated helper, so one instance cannot replace another's input.
+        using var operationMutex = new Mutex(false, "AfterThemed.Operation." +
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(DataRoot.ToUpperInvariant())))[..16]);
+        var acquired = false;
+        try
+        {
+            try { acquired = operationMutex.WaitOne(0); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired) throw new InvalidOperationException("Another AfterThemed window is applying changes. Wait for it to finish.");
+            action();
+        }
+        catch (OperationCanceledException)
+        {
+            Log("Operation cancelled.");
+        }
         catch (Exception ex)
         {
+            AppDiagnostics.Write(ex.ToString());
             Log("ERROR · " + ex.Message);
             MessageBox.Show(this, ex.Message, "AfterThemed by Drerachi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             // A failed patch is the case worth a report, and the diagnostics are already on disk.
             if (reportOnFailure) ReportBug();
         }
+        finally { if (acquired) operationMutex.ReleaseMutex(); }
     }
-    private void Log(string text) => log.AppendText($"[{DateTime.Now:HH:mm:ss}]  {text}\r\n");
+    private void Log(string text)
+    {
+        AppDiagnostics.Write(text);
+        log.AppendText($"[{DateTime.Now:HH:mm:ss}]  {text}\r\n");
+    }
 
     private void DragWindow(object? sender, MouseEventArgs e)
     {

@@ -59,8 +59,10 @@ internal static class LegacyAeThemePatcher
         string originalsRoot,
         string outputPath)
     {
-        if (!RequiresCompanion(dvauiTargetPath)) return null;
         var targetPath = CompanionTarget(dvauiTargetPath);
+        // Restore from the saved identity even when the live companion is missing or damaged.
+        if (OriginalDllStore.ExistingFor(targetPath, originalsRoot, requireAdobeSignature: false) is null &&
+            !RequiresCompanion(dvauiTargetPath)) return null;
         var restorePath = OriginalDllStore.CreateRestoreDll(targetPath, originalsRoot, outputPath,
             InspectCompanionOriginal);
         return new LegacyAeThemeCompanion(restorePath, targetPath, OriginalDllStore.Sha256(restorePath));
@@ -113,14 +115,16 @@ internal static class LegacyAeThemePatcher
 
     internal static bool RequiresCompanion(string dvauiPath)
     {
-        try
-        {
-            return HasNativeThemeResources(CompanionTarget(dvauiPath));
-        }
-        catch
-        {
-            return false;
-        }
+        var companion = CompanionTarget(dvauiPath);
+        if (!File.Exists(companion)) return false;
+        var resources = new DvauiPeImage(File.ReadAllBytes(companion)).Resources()
+            .Where(resource => string.Equals(resource.Type, "XML", StringComparison.OrdinalIgnoreCase) &&
+                               RequiredResourceNames.Contains(resource.Name, StringComparer.OrdinalIgnoreCase)).ToArray();
+        if (resources.Length == 0) return false;
+        if (!RequiredResourceNames.Skip(1).All(name =>
+                resources.Any(resource => resource.Name.Equals(name, StringComparison.OrdinalIgnoreCase))))
+            throw new InvalidDataException("AfterFXLib.dll contains an unsupported or incomplete native theme layout. No native theme files were installed.");
+        return true;
     }
 
     /// <summary>
@@ -146,7 +150,7 @@ internal static class LegacyAeThemePatcher
             return false;
         }
 
-        return RequiredResourceNames.All(name =>
+        return RequiredResourceNames.Skip(1).All(name =>
             resources.Any(resource => string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase)));
     }
 
@@ -160,7 +164,8 @@ internal static class LegacyAeThemePatcher
             .OrderBy(resource => resource.Offset)
             .ToArray();
 
-        var missing = RequiredResourceNames
+        // AE 2025 omits AECOLORTHEMES; V2/V4/V5 remain the required common set.
+        var missing = RequiredResourceNames.Skip(1)
             .Where(name => resources.All(resource => !string.Equals(resource.Name, name,
                 StringComparison.OrdinalIgnoreCase)))
             .ToArray();

@@ -4,7 +4,8 @@ namespace DvauiThemeEditor;
 
 internal sealed record ThemeFileInstall(string InputPath, string TargetPath);
 
-internal sealed record ThemeFileSetManifest(string BackupDirectory, IReadOnlyList<ThemeFileInstall> Files);
+internal sealed record ThemeFileSetManifest(string BackupDirectory, IReadOnlyList<ThemeFileInstall> Files,
+    bool RestoreMissingTargets = false);
 
 internal sealed record ThemeFileInstallResult(
     ThemeFileInstall File,
@@ -117,7 +118,8 @@ internal static class ThemeFileSetInstaller
             return new ThemeFileSetReport(2, "process check", "Close After Effects before installing.", []);
 
         installer ??= file => NativeDllInstaller.Install(
-            file.InputPath, file.TargetPath, manifest.BackupDirectory, requireAfterEffectsClosed: false);
+            file.InputPath, file.TargetPath, manifest.BackupDirectory, requireAfterEffectsClosed: false,
+            allowMissingTarget: manifest.RestoreMissingTargets);
 
         var results = new List<ThemeFileInstallResult>();
         foreach (var file in files)
@@ -131,7 +133,12 @@ internal static class ThemeFileSetInstaller
             {
                 var previous = results[index];
                 NativeInstallReport rollback;
-                if (string.IsNullOrWhiteSpace(previous.Install.BackupPath) ||
+                if (manifest.RestoreMissingTargets && previous.Install.BackupPath is null)
+                {
+                    rollback = new NativeInstallReport(0, "restore recovery",
+                        "A previously missing original was recovered and retained; remaining files still need restoration.");
+                }
+                else if (string.IsNullOrWhiteSpace(previous.Install.BackupPath) ||
                     !File.Exists(previous.Install.BackupPath))
                 {
                     rollback = new NativeInstallReport(2, "file-set rollback",
@@ -174,7 +181,7 @@ internal static class ThemeFileSetInstaller
         {
             if (!File.Exists(file.InputPath))
                 throw new FileNotFoundException("A generated theme file was not found.", file.InputPath);
-            if (!File.Exists(file.TargetPath))
+            if (!File.Exists(file.TargetPath) && !manifest.RestoreMissingTargets)
                 throw new FileNotFoundException("An installed theme target was not found.", file.TargetPath);
         }
         return files;

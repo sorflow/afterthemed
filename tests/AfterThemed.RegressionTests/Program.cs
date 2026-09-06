@@ -12,6 +12,27 @@ internal static class Program
     private static int Main()
     {
         var failures = new List<string>();
+        Run("DLL theme extraction reads native and JSON colors without mutating its donor", DllPaletteExtraction, failures);
+        Run("DLL theme import rejects malformed binaries", InvalidDllPaletteRejected, failures);
+        Run("new originals are grouped by AE release with distinct builds and installations", ReadableOriginalCapture, failures);
+        Run("legacy library organization preserves bytes and active restore provenance", OrganizeLegacyOriginals, failures);
+        Run("interrupted pointer migration still selects the active original", InterruptedLibraryMigration, failures);
+        Run("organization preserves conflicting and malformed backups", LibraryMigrationConflicts, failures);
+        Run("organization uses the recorded AE release even when the target is missing", MissingTargetLibraryMigration, failures);
+        Run("a visible rejected snapshot is not reported as missing", VisibleRejectedSnapshotIsExplained, failures);
+        Run("signed backup import repairs the original store without replacing the installed DLL", ImportBackupPreservesTarget, failures);
+        Run("backup import rejects a different executable build", ImportBackupRejectsDifferentBuild, failures);
+        Run("backup import verifies stored bytes and rejects unsigned input", ImportBackupRejectsUnsigned, failures);
+        Run("unsealed legacy snapshots are not trusted by hash alone", UnsealedSnapshotRejected, failures);
+        Run("protected originals survive a deleted primary and installed DLL", ProtectedOriginalRecovery, failures);
+        Run("edited metadata cannot authenticate a changed original", ProtectedMetadataTamperRejected, failures);
+        Run("capture validates the stored bytes and leaves no incomplete snapshot", CaptureRejectsChangedBytes, failures);
+        Run("restore handles a truncated installed DLL", TruncatedTargetRestore, failures);
+        Run("restore rejects originals after the Adobe host changes", ChangedHostRejectsRestore, failures);
+        Run("restore output cannot overwrite the vault", RestoreCannotOverwriteVault, failures);
+        Run("restore file-set recreates missing native files", MissingFileSetRestore, failures);
+        Run("a committer that throws after replacement is rolled back", ThrowAfterCommitRollsBack, failures);
+        Run("simultaneous captures publish one complete protected original", ConcurrentCapture, failures);
         Run("native installer failure is not reported as a final hash failure",
             NativeInstallerFailureIsNotReportedAsFinalHashFailure, failures);
         Run("native installer reports the failing stage",
@@ -50,6 +71,10 @@ internal static class Program
             ActiveSnapshotProvenanceOverridesCaptureRecency, failures);
         Run("restore captures a signed same-version hotfix before selecting an original",
             RestoreCapturesSameVersionHotfixBeforeSelectingOriginal, failures);
+        Run("restore trusts an existing snapshot hash when Authenticode rejects Adobe dvaui",
+            RestoreTrustsExistingSnapshotHashWhenAuthenticodeRejectsAdobeDvaui, failures);
+        Run("capture still rejects unsigned dvaui when no original exists",
+            CaptureStillRejectsUnsignedDvauiWhenNoOriginalExists, failures);
         Run("legacy and current DROVER resource names are recognized",
             LegacyAndCurrentDroverResourceNamesAreRecognized, failures);
         Run("hybrid Spectrum JSON and native theme engines patch together",
@@ -111,8 +136,26 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
+    }
+
+    private static void UnsealedSnapshotRejected()
+    {
+        var root = NewTempDirectory("unsealed-snapshot");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var snapshot = CreateHistoricalSnapshot(originals, "legacy", target,
+                DateTimeOffset.UtcNow, mutateLastByte: false);
+            var receipt = Path.Combine(Path.GetDirectoryName(snapshot)!, "snapshot.proof");
+            if (File.Exists(receipt)) { File.SetAttributes(receipt, FileAttributes.Normal); File.Delete(receipt); }
+            Require(OriginalDllStore.ExistingFor(target, originals, requireAdobeSignature: false) is null,
+                "an unsigned legacy file with matching JSON hash was accepted as an Adobe original");
+        }
+        finally { DeleteTestDirectory(root); }
     }
 
     private static void NativeInstallerReportsTheFailingStage()
@@ -137,7 +180,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -163,7 +206,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -197,7 +240,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -223,7 +266,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -251,7 +294,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -281,7 +324,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -325,7 +368,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -345,7 +388,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -371,7 +414,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -396,7 +439,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -423,7 +466,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -450,7 +493,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -471,7 +514,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -499,7 +542,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -532,7 +575,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -559,7 +602,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -585,7 +628,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -622,7 +665,56 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
+        }
+    }
+
+    private static void RestoreTrustsExistingSnapshotHashWhenAuthenticodeRejectsAdobeDvaui()
+    {
+        var root = NewTempDirectory("restore-bad-digest");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var restoreOutput = Path.Combine(root, "restore", "dvaui.dll");
+            var snapshot = CreateHistoricalSnapshot(originals, "adobe-bad-digest", target,
+                DateTimeOffset.Parse("2026-06-01T00:00:00Z"), mutateLastByte: false);
+
+            OriginalDllStore.AdobeSignature BadDigest(string _) =>
+                throw new InvalidDataException("Windows Authenticode verification returned 0x80096010.");
+
+            var restored = OriginalDllStore.CreateRestoreDll(target, originals, restoreOutput, BadDigest);
+
+            Require(OriginalDllStore.Sha256(restored) == OriginalDllStore.Sha256(snapshot),
+                "restore refused or changed an existing SHA-pinned snapshot after Authenticode rejected it");
+        }
+        finally
+        {
+            DeleteTestDirectory(root);
+        }
+    }
+
+    private static void CaptureStillRejectsUnsignedDvauiWhenNoOriginalExists()
+    {
+        var root = NewTempDirectory("capture-no-original");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+
+            OriginalDllStore.AdobeSignature InvalidSigner(string _) =>
+                throw new InvalidDataException("The signer is not Adobe.");
+
+            var exception = Capture(() => OriginalDllStore.CaptureIfMissing(
+                target, originals, out _, InvalidSigner));
+
+            Require(exception is InvalidDataException, "invalid dvaui was captured without an existing original");
+        }
+        finally
+        {
+            DeleteTestDirectory(root);
         }
     }
 
@@ -649,6 +741,7 @@ internal static class Program
             Sha256 = OriginalDllStore.Sha256(snapshot),
             version.FileVersion
         }));
+        SnapshotProtection.Seal(snapshot, Path.Combine(directory, "snapshot.json"));
         return snapshot;
     }
 
@@ -963,6 +1056,11 @@ internal static class Program
             Require(LegacyAeThemePatcher.HasNativeThemeResources(complete),
                 "a companion carrying every native color theme was not recognized");
 
+            var ae2025 = Path.Combine(root, "Ae2025.dll");
+            File.WriteAllBytes(ae2025, CreateCompanionFixture(CompanionResourceNames[1..], themed: false));
+            Require(LegacyAeThemePatcher.HasNativeThemeResources(ae2025),
+                "AE 2025's three-resource native color layout was silently skipped");
+
             var partial = Path.Combine(root, "Partial.dll");
             File.WriteAllBytes(partial, CreateCompanionFixture(
                 ["AECOLORTHEMES", "DVACOLORTHEMESV2"], themed: false));
@@ -979,7 +1077,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -1003,7 +1101,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -1210,7 +1308,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -1257,7 +1355,7 @@ internal static class Program
         }
         finally
         {
-            Directory.Delete(root, true);
+            DeleteTestDirectory(root);
         }
     }
 
@@ -1318,6 +1416,451 @@ internal static class Program
         """;
         Require(UpdateChecker.ParseLatestRelease(prereleaseJson, new Version(1, 3, 12)) is null,
             "prerelease was reported as a stable update");
+    }
+
+    private static void ProtectedOriginalRecovery()
+    {
+        var root = NewTempDirectory("protected-recovery");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var original = OriginalDllStore.CaptureIfMissing(target, originals, out _,
+                _ => new("CN=Adobe Test", "TEST"));
+            var expected = OriginalDllStore.Sha256(target);
+            Require((File.GetAttributes(original) & FileAttributes.ReadOnly) != 0, "original is not protected from accidental edits");
+            File.SetAttributes(original, FileAttributes.Normal);
+            File.Delete(original);
+            File.Delete(target);
+            var output = OriginalDllStore.CreateRestoreDll(target, originals, Path.Combine(root, "restore.dll"));
+            Require(OriginalDllStore.Sha256(output) == expected, "recovery copy did not restore exact bytes");
+            var installed = NativeDllInstaller.Install(output, target, Path.Combine(root, "Backups"),
+                requireAfterEffectsClosed: false, allowMissingTarget: true);
+            Require(installed.Succeeded && OriginalDllStore.Sha256(target) == expected,
+                "restore cannot recreate a deleted installed DLL: " + installed.Message);
+            var replica = Path.Combine(Path.GetDirectoryName(original)!, "original.recovery");
+            File.SetAttributes(replica, FileAttributes.Normal);
+            File.WriteAllText(replica, "corrupt");
+            Require(Capture(() => OriginalDllStore.RequireExistingOriginal(target, originals)) is not null,
+                "both damaged copies were accepted");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ProtectedMetadataTamperRejected()
+    {
+        var root = NewTempDirectory("protected-tamper");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var original = OriginalDllStore.CaptureIfMissing(target, originals, out _,
+                _ => new("CN=Adobe Test", "TEST"));
+            var metadata = Path.Combine(Path.GetDirectoryName(original)!, "snapshot.json");
+            File.SetAttributes(metadata, FileAttributes.Normal);
+            File.AppendAllText(metadata, " ");
+            Require(OriginalDllStore.ExistingFor(target, originals, false) is null,
+                "changed metadata was accepted despite its protection record");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void CaptureRejectsChangedBytes()
+    {
+        var root = NewTempDirectory("capture-change");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var failure = Capture(() => OriginalDllStore.CaptureIfMissing(target, originals, out _, path =>
+            {
+                Require(path != target, "signature inspector did not inspect the staged snapshot");
+                File.WriteAllText(path, "changed during inspection");
+                return new("CN=Adobe Test", "TEST");
+            }));
+            Require(failure is IOException, "changed capture was published");
+            Require(!Directory.EnumerateFiles(originals, "snapshot.json", SearchOption.AllDirectories).Any(),
+                "failed capture became a selectable snapshot");
+            Require(!Directory.EnumerateFiles(originals, "*.adobe-original", SearchOption.AllDirectories).Any(),
+                "failed capture leaked its staged original");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void TruncatedTargetRestore()
+    {
+        var root = NewTempDirectory("truncated-restore");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var snapshot = OriginalDllStore.CaptureIfMissing(target, originals, out _, _ => new("CN=Adobe Test", "TEST"));
+            File.WriteAllText(target, "truncated");
+            var restored = OriginalDllStore.CreateRestoreDll(target, originals, Path.Combine(root, "restored.dll"));
+            Require(OriginalDllStore.Sha256(restored) == OriginalDllStore.Sha256(snapshot), "truncated target prevented restore");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ChangedHostRejectsRestore()
+    {
+        var root = NewTempDirectory("changed-host");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            var host = Path.Combine(root, "AfterFX.exe");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            File.WriteAllText(host, "Adobe version A");
+            var originals = Path.Combine(root, "Originals");
+            _ = OriginalDllStore.CaptureIfMissing(target, originals, out _, _ => new("CN=Adobe Test", "TEST"));
+            File.WriteAllText(host, "Adobe version B");
+            File.Delete(target);
+            Require(Capture(() => OriginalDllStore.CreateRestoreDll(target, originals, Path.Combine(root, "restore.dll"))) is not null,
+                "a missing DLL was restored from a different Adobe host build");
+            Require(!File.Exists(Path.Combine(root, "restore.dll")), "a stale restore file was published");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void RestoreCannotOverwriteVault()
+    {
+        var root = NewTempDirectory("vault-alias");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var snapshot = OriginalDllStore.CaptureIfMissing(target, originals, out _, _ => new("CN=Adobe Test", "TEST"));
+            var expected = OriginalDllStore.Sha256(snapshot);
+            Require(Capture(() => OriginalDllStore.CreateRestoreDll(target, originals, snapshot)) is InvalidOperationException,
+                "restore permitted its output to overwrite a protected original");
+            Require(OriginalDllStore.Sha256(snapshot) == expected, "vault was changed");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void MissingFileSetRestore()
+    {
+        var root = NewTempDirectory("missing-set");
+        try
+        {
+            var source = Path.Combine(root, "original.dll");
+            File.WriteAllText(source, "verified restore bytes");
+            var manifest = new ThemeFileSetManifest(Path.Combine(root, "Backups"),
+                [new(source, Path.Combine(root, "AfterFXLib.dll")), new(source, Path.Combine(root, "dvaui.dll"))],
+                RestoreMissingTargets: true);
+            var result = ThemeFileSetInstaller.Install(manifest, requireAfterEffectsClosed: false);
+            Require(result.Succeeded && result.Files.Count == 2, "missing native set could not be recovered");
+            foreach (var file in manifest.Files)
+                Require(OriginalDllStore.Sha256(file.TargetPath) == OriginalDllStore.Sha256(source), "recovered file hash differs");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ThrowAfterCommitRollsBack()
+    {
+        var root = NewTempDirectory("throw-after-commit");
+        try
+        {
+            var source = Path.Combine(root, "generated.dll");
+            var target = Path.Combine(root, "dvaui.dll");
+            File.WriteAllText(source, "generated");
+            File.WriteAllText(target, "original");
+            var report = NativeDllInstaller.Install(source, target, Path.Combine(root, "Backups"),
+                requireAfterEffectsClosed: false, committer: new ThrowingCommitter());
+            Require(!report.Succeeded && report.RollbackSucceeded && File.ReadAllText(target) == "original",
+                "an exception after replacement left the changed DLL installed");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private sealed class ThrowingCommitter : NativeDllInstaller.IAtomicCommitter
+    {
+        public void Replace(string stagedPath, string targetPath)
+        {
+            File.Move(stagedPath, targetPath, true);
+            throw new IOException("Failure after commit");
+        }
+    }
+
+    private static void ConcurrentCapture()
+    {
+        var root = NewTempDirectory("concurrent-capture");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var captured = new string[4];
+            Parallel.For(0, captured.Length, index =>
+            {
+                captured[index] = OriginalDllStore.CaptureIfMissing(target, originals, out _,
+                    _ => new("CN=Adobe Test", "TEST"));
+            });
+            Require(captured.Distinct().Count() == 1, "concurrent capture selected different originals");
+            Require(Directory.EnumerateFiles(originals, "snapshot.json", SearchOption.AllDirectories).Count() == 1,
+                "concurrent capture published duplicate or incomplete records");
+            SnapshotProtection.Verify(Path.Combine(Path.GetDirectoryName(captured[0])!, "snapshot.json"));
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ReadableOriginalCapture()
+    {
+        var root = NewTempDirectory("readable-library");
+        try
+        {
+            var originals = Path.Combine(root, "Originals");
+            var paths = new List<string>();
+            foreach (var relative in new[] { @"drive-a\Adobe After Effects 2020\Support Files\dvaui.dll",
+                         @"drive-b\Adobe After Effects 2020\Support Files\dvaui.dll",
+                         @"drive-a\Adobe After Effects 2020\Support Files\AfterFXLib.dll" })
+            {
+                var target = Path.Combine(root, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+                var stored = OriginalDllStore.CaptureIfMissing(target, originals, out var captured, _ => new("Adobe Test", "TEST"));
+                Require(captured, "new original was not captured");
+                Require(Path.GetRelativePath(originals, stored).StartsWith(@"After Effects 2020\"), "DLL internal version was mistaken for AE release");
+                Require(Path.GetFileName(Path.GetDirectoryName(stored)!).StartsWith(Path.GetFileName(target)), "DLL role was not labeled");
+                Require(OriginalDllStore.CaptureIfMissing(target, originals, out captured) == stored && !captured,
+                    "readable capture could not be reused");
+                paths.Add(stored);
+            }
+            Require(paths.Distinct().Count() == 3, "different installations or companions were merged");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void OrganizeLegacyOriginals()
+    {
+        var root = NewTempDirectory("organize-library");
+        try
+        {
+            var target = Path.Combine(root, @"Adobe After Effects 2020\Support Files\dvaui.dll");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var saved = CreateHistoricalSnapshot(originals, "0123456789ABCDEF", target, DateTimeOffset.UtcNow, false);
+            OriginalDllStore.MarkActiveSnapshot(target, originals, saved);
+            var hashes = Directory.GetFiles(Path.GetDirectoryName(saved)!).ToDictionary(path => Path.GetFileName(path)!,
+                OriginalDllStore.Sha256);
+            var result = OriginalLibraryLayout.Organize(originals);
+            Require(result.Moved == 1 && result.Warnings.Count == 0, "legacy original was not organized");
+            var selected = OriginalDllStore.RequireExistingOriginal(target, originals);
+            Require(selected != saved && selected.Contains("After Effects 2020"), "restore did not discover the organized snapshot");
+            foreach (var pair in hashes)
+                Require(OriginalDllStore.Sha256(Path.Combine(Path.GetDirectoryName(selected)!, pair.Key!)) == pair.Value,
+                    "organization changed snapshot bytes");
+            var pointer = File.ReadAllText(Directory.GetFiles(Path.Combine(originals, "_active"), "*.json").Single());
+            Require(pointer.Contains("After Effects 2020"), "active pointer was not updated");
+            Require(OriginalLibraryLayout.Organize(originals).Moved == 0, "organization is not idempotent");
+            File.SetAttributes(selected, FileAttributes.Normal);
+            File.Delete(selected);
+            File.Delete(target);
+            var restored = OriginalDllStore.CreateRestoreDll(target, originals, Path.Combine(root, "restored.dll"));
+            Require(OriginalDllStore.Sha256(restored) == hashes["dvaui.dll.adobe-original"], "recovery failed after migration");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void InterruptedLibraryMigration()
+    {
+        var root = NewTempDirectory("interrupted-library");
+        try
+        {
+            var target = Path.Combine(root, @"Adobe After Effects 2023\Support Files\dvaui.dll");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var active = CreateHistoricalSnapshot(originals, "1111111111111111", target, DateTimeOffset.UtcNow.AddDays(-1), false);
+            CreateHistoricalSnapshot(originals, "2222222222222222", target, DateTimeOffset.UtcNow, true);
+            OriginalDllStore.MarkActiveSnapshot(target, originals, active);
+            var hash = OriginalDllStore.Sha256(active);
+            var pointer = Directory.GetFiles(Path.Combine(originals, "_active"), "*.json").Single();
+            var oldPointer = File.ReadAllBytes(pointer);
+            Require(OriginalLibraryLayout.Organize(originals).Moved == 2, "two originals were not organized");
+            File.WriteAllBytes(pointer, oldPointer); // Simulate a crash before active-pointer publication.
+            Require(OriginalDllStore.Sha256(OriginalDllStore.RequireExistingOriginal(target, originals)) == hash,
+                "stale pointer lost active provenance to a newer snapshot");
+            OriginalLibraryLayout.Organize(originals);
+            Require(File.ReadAllText(pointer).Contains("After Effects 2023"), "retry did not heal the pointer");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void LibraryMigrationConflicts()
+    {
+        var root = NewTempDirectory("conflicting-library");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var saved = CreateHistoricalSnapshot(originals, "0123456789ABCDEF", target, DateTimeOffset.UtcNow, false);
+            var destination = OriginalLibraryLayout.Destination(originals, target,
+                FileVersionInfo.GetVersionInfo(target).FileVersion, "0123456789ABCDEF");
+            Directory.CreateDirectory(destination);
+            File.WriteAllText(Path.Combine(destination, "keep.txt"), "keep me");
+            var broken = Path.Combine(originals, "0000000000000000");
+            Directory.CreateDirectory(broken);
+            File.WriteAllText(Path.Combine(broken, "snapshot.json"), "broken JSON");
+            var pending = Path.Combine(originals, "_pending", "1111111111111111");
+            Directory.CreateDirectory(pending);
+            File.WriteAllText(Path.Combine(pending, "snapshot.json"), "{}");
+            var result = OriginalLibraryLayout.Organize(originals);
+            Require(result.Moved == 0 && result.Warnings.Count == 2, "conflicts were not reported and preserved");
+            Require(File.Exists(saved) && File.ReadAllText(Path.Combine(destination, "keep.txt")) == "keep me", "conflict overwrote evidence");
+            Require(!OriginalLibraryLayout.SnapshotDirectories(originals).Any(path => path.Contains("_pending")), "pending captures became selectable");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void MissingTargetLibraryMigration()
+    {
+        var root = NewTempDirectory("missing-target-library");
+        try
+        {
+            var target = Path.Combine(root, @"Adobe After Effects CC 2019\Support Files\dvaui.dll");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var saved = CreateHistoricalSnapshot(originals, "0123456789ABCDEF", target, DateTimeOffset.UtcNow, false);
+            var hash = OriginalDllStore.Sha256(saved);
+            File.Delete(target);
+            Require(OriginalLibraryLayout.Organize(originals).Moved == 1, "missing target blocked organization");
+            var selected = OriginalDllStore.RequireExistingOriginal(target, originals);
+            Require(selected.Contains("After Effects CC 2019") && OriginalDllStore.Sha256(selected) == hash,
+                "missing target lost its release label or original");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void VisibleRejectedSnapshotIsExplained()
+    {
+        var root = NewTempDirectory("visible-rejected-snapshot");
+        try
+        {
+            var target = Path.Combine(root, @"Adobe After Effects 2025\Support Files\dvaui.dll");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            var snapshot = CreateHistoricalSnapshot(originals, "0123456789ABCDEF", target, DateTimeOffset.UtcNow, false);
+            var proof = Path.Combine(Path.GetDirectoryName(snapshot)!, "snapshot.proof");
+            File.SetAttributes(proof, FileAttributes.Normal);
+            File.Delete(proof);
+            var error = Capture(() => OriginalDllStore.RequireExistingOriginal(target, originals));
+            Require(error is InvalidOperationException && error.Message.Contains("stored snapshot exists", StringComparison.OrdinalIgnoreCase) &&
+                    error.Message.Contains(snapshot, StringComparison.OrdinalIgnoreCase) &&
+                    error.Message.Contains("failed verification", StringComparison.OrdinalIgnoreCase),
+                "visible rejected snapshot was misleadingly reported as absent");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ImportBackupPreservesTarget()
+    {
+        var root = NewTempDirectory("import-original");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            var clean = Path.Combine(root, "old-backup.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            File.Copy(target, clean);
+            using (var stream = new FileStream(target, FileMode.Open, FileAccess.ReadWrite))
+            { stream.Position = stream.Length - 1; stream.WriteByte(123); }
+            var installedHash = OriginalDllStore.Sha256(target);
+            var originals = Path.Combine(root, "Originals");
+            var stored = OriginalDllStore.ImportVerifiedOriginal(target, originals, clean, path =>
+            {
+                Require(path != clean && path != target, "import did not verify the staged copy");
+                return new("Adobe Test", "TEST");
+            });
+            Require(OriginalDllStore.Sha256(target) == installedHash, "import replaced the installed DLL");
+            Require(OriginalDllStore.Sha256(stored) == OriginalDllStore.Sha256(clean), "import saved the themed target");
+            Require(OriginalDllStore.RequireExistingOriginal(target, originals) == stored, "imported original was not selected");
+            var restored = OriginalDllStore.CreateRestoreDll(target, originals, Path.Combine(root, "restore.dll"),
+                _ => throw new InvalidDataException("themed target"));
+            Require(OriginalDllStore.Sha256(restored) == OriginalDllStore.Sha256(clean), "restore did not use the recovered original");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ImportBackupRejectsDifferentBuild()
+    {
+        var root = NewTempDirectory("import-wrong-build");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            var backup = Path.Combine(root, "other-build.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var bytes = File.ReadAllBytes(target);
+            var header = BitConverter.ToInt32(bytes, 0x3C);
+            bytes[header + 8] ^= 1; // Same version resource, different linker timestamp/build identity.
+            File.WriteAllBytes(backup, bytes);
+            var originals = Path.Combine(root, "Originals");
+            var error = Capture(() => OriginalDllStore.ImportVerifiedOriginal(target, originals, backup, _ => new("Adobe Test", "TEST")));
+            Require(error is InvalidDataException && error.Message.Contains("build layout"), "mismatched build was imported");
+            Require(!Directory.EnumerateFiles(originals, "snapshot.json", SearchOption.AllDirectories).Any(), "rejected import published a snapshot");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void ImportBackupRejectsUnsigned()
+    {
+        var root = NewTempDirectory("import-unsigned");
+        try
+        {
+            var target = Path.Combine(root, "dvaui.dll");
+            File.Copy(typeof(OriginalDllStore).Assembly.Location, target);
+            var originals = Path.Combine(root, "Originals");
+            Require(Capture(() => OriginalDllStore.ImportVerifiedOriginal(target, originals, target)) is InvalidDataException,
+                "unsigned backup bypassed Adobe validation");
+            Require(!Directory.EnumerateFiles(originals, "snapshot.json", SearchOption.AllDirectories).Any(), "unsigned import published a snapshot");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void DllPaletteExtraction()
+    {
+        var fixture = CreateHybridDvauiFixture(false);
+        var json = "{" + string.Join(',', Enumerable.Range(0, 8).Select(i => $"\"background-{i}\":\"rgb(38, 38, 38)\"")) +
+            ",\"text\":\"rgb(240, 240, 240)\",\"accent\":\"rgb(80, 160, 240)\",\"hidden\":\"rgba(255, 0, 255, 0)\"}";
+        fixture.Data.AsSpan(fixture.JsonOffset, fixture.JsonSize).Fill((byte)' ');
+        Encoding.UTF8.GetBytes(json).CopyTo(fixture.Data, fixture.JsonOffset);
+        var before = fixture.Data.ToArray();
+        var extracted = ThemePatcher.ExtractThemeForTesting(fixture.Data, 14, "14.6-test");
+        Require(extracted.Colors.Count == 3, "did not merge native and JSON colors or excluded transparency incorrectly");
+        Require(extracted.Colors.Any(color => color.R == 80 && color.G == 160 && color.B == 240), "JSON accent missing");
+        Require(before.SequenceEqual(fixture.Data), "extraction modified the source DLL");
+        var target = CreateHybridDvauiFixture(true);
+        var generated = ThemePatcher.GenerateForTesting(target.Data, 14, "14.6-other-target", extracted.Suggested);
+        Require(generated.Length == target.Data.Length, "transfer changed target layout size");
+        Require(Math.Abs(BitConverter.ToSingle(generated, target.NativeColorOffset) - extracted.Suggested.Panel.R / 255f) < .000001f,
+            "extracted palette did not apply to the different target encoding");
+    }
+
+    private static void InvalidDllPaletteRejected()
+    {
+        var root = NewTempDirectory("invalid-dll-palette");
+        try
+        {
+            var path = Path.Combine(root, "dvaui.dll");
+            File.WriteAllText(path, "not a DLL #ABCDEF #123456");
+            Require(Capture(() => ThemeImporter.Load(path)) is InvalidDataException, "invalid DLL was imported as plain text");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void DeleteTestDirectory(string root)
+    {
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            File.SetAttributes(file, FileAttributes.Normal);
+        Directory.Delete(root, true);
     }
 
     private static string NewTempDirectory(string name)

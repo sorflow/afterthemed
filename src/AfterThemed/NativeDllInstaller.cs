@@ -108,14 +108,15 @@ internal static class NativeDllInstallCommand
         string targetPath,
         string backupDirectory,
         string? reportPath,
-        bool requireAfterEffectsClosed = true)
+        bool requireAfterEffectsClosed = true,
+        bool allowMissingTarget = false)
     {
         // A requested report is part of the elevated-operation protocol. Refuse to
         // mutate the target when the result channel is not writable.
         if (!NativeInstallReportStore.CanWrite(reportPath)) return 2;
 
         var report = NativeDllInstaller.Install(sourcePath, targetPath, backupDirectory,
-            requireAfterEffectsClosed);
+            requireAfterEffectsClosed, allowMissingTarget: allowMissingTarget);
         return NativeInstallReportStore.TryWrite(reportPath, report) ? report.ExitCode : 2;
     }
 }
@@ -157,7 +158,8 @@ internal static class NativeDllInstaller
         string targetPath,
         string backupDirectory,
         bool requireAfterEffectsClosed = true,
-        IAtomicCommitter? committer = null)
+        IAtomicCommitter? committer = null,
+        bool allowMissingTarget = false)
     {
         string stage = "preflight";
         string? temporaryPath = null;
@@ -167,6 +169,8 @@ internal static class NativeDllInstaller
         string? verifiedBackupHash = null;
         string? actualHash = null;
         var replacementCommitted = false;
+        var replacementAttempted = false;
+        var targetWasMissing = false;
         var rollbackAttempted = false;
         var rollbackSucceeded = false;
         string? rollbackMessage = null;
@@ -182,8 +186,11 @@ internal static class NativeDllInstaller
             fullTarget = Path.GetFullPath(targetPath);
             if (!File.Exists(fullSource))
                 throw new FileNotFoundException("The generated DLL to install was not found.", fullSource);
-            if (!File.Exists(fullTarget))
+            targetWasMissing = !File.Exists(fullTarget);
+            if (targetWasMissing && !allowMissingTarget)
                 throw new FileNotFoundException("The selected installed dvaui.dll was not found.", fullTarget);
+            if (string.Equals(fullSource, fullTarget, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("The source DLL and installation target must be different files.");
 
             stage = "source verification";
             expectedHash = OriginalDllStore.Sha256(fullSource);
@@ -192,36 +199,49 @@ internal static class NativeDllInstaller
             Directory.CreateDirectory(backupDirectory);
 
             stage = "target backup";
-            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-            backupPath = Path.Combine(backupDirectory, $"dvaui-{stamp}-{Guid.NewGuid():N}.dll");
-            File.Copy(fullTarget, backupPath, false);
-            // File.Copy carries the source's attributes onto the copy, so a read-only installed
-            // target would leave every backup read-only too. A backup is archival, not installed
-            // software, and AfterThemed's own rollback and restore must be free to replace it.
-            ClearReadOnly(backupPath);
-            verifiedBackupHash = OriginalDllStore.Sha256(backupPath);
-            actualHash = OriginalDllStore.Sha256(fullTarget);
-            if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
-                throw new IOException("The backup did not match the installed DLL.");
+            if (!targetWasMissing)
+            {
+                var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+                backupPath = Path.Combine(backupDirectory, $"dvaui-{stamp}-{Guid.NewGuid():N}.dll");
+                File.Copy(fullTarget, backupPath, false);
+                // File.Copy carries the source's attributes onto the copy, so a read-only installed
+                // target would leave every backup read-only too. A backup is archival, not installed
+                // software, and AfterThemed's own rollback and restore must be free to replace it.
+                ClearReadOnly(backupPath);
+                verifiedBackupHash = OriginalDllStore.Sha256(backupPath);
+                actualHash = OriginalDllStore.Sha256(fullTarget);
+                if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
+                    throw new IOException("The backup did not match the installed DLL.");
+            }
 
             stage = "staged copy";
             Directory.CreateDirectory(Path.GetDirectoryName(fullTarget)!);
             temporaryPath = Path.Combine(Path.GetDirectoryName(fullTarget)!,
                 $"dvaui.afterthemed-{Guid.NewGuid():N}.tmp");
             File.Copy(fullSource, temporaryPath, false);
+            ClearReadOnly(temporaryPath);
             actualHash = OriginalDllStore.Sha256(temporaryPath);
             if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
                 throw new IOException("The staged DLL did not match the generated DLL.");
 
             stage = "pre-replacement verification";
-            if (!string.Equals(verifiedBackupHash, OriginalDllStore.Sha256(backupPath), StringComparison.Ordinal))
-                throw new IOException("The backup changed after it was verified; replacement was cancelled.");
-            actualHash = OriginalDllStore.Sha256(fullTarget);
-            if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
-                throw new IOException("The installed DLL changed after it was backed up; replacement was cancelled.");
+            if (!targetWasMissing)
+            {
+                if (!string.Equals(verifiedBackupHash, OriginalDllStore.Sha256(backupPath!), StringComparison.Ordinal))
+                    throw new IOException("The backup changed after it was verified; replacement was cancelled.");
+                actualHash = OriginalDllStore.Sha256(fullTarget);
+                if (!string.Equals(verifiedBackupHash, actualHash, StringComparison.Ordinal))
+                    throw new IOException("The installed DLL changed after it was backed up; replacement was cancelled.");
+            }
+            else if (File.Exists(fullTarget))
+                throw new IOException("The missing target was recreated by another process; restore was cancelled.");
 
             stage = "DLL replacement";
-            (committer ?? FileAtomicCommitter.Instance).Replace(temporaryPath, fullTarget);
+            replacementAttempted = true;
+            if (targetWasMissing && committer is null)
+                File.Move(temporaryPath, fullTarget, overwrite: false);
+            else
+                (committer ?? FileAtomicCommitter.Instance).Replace(temporaryPath, fullTarget);
             temporaryPath = null;
             replacementCommitted = true;
 
@@ -235,11 +255,24 @@ internal static class NativeDllInstaller
         }
         catch (Exception exception)
         {
+            if (replacementAttempted && !replacementCommitted && fullTarget is not null && !targetWasMissing)
+            {
+                // A committer can change the destination and then throw. Inspect the result
+                // before concluding that no rollback is necessary.
+                try { replacementCommitted = !File.Exists(fullTarget) || OriginalDllStore.Sha256(fullTarget) != verifiedBackupHash; }
+                catch (IOException) { replacementCommitted = true; }
+                catch (UnauthorizedAccessException) { replacementCommitted = true; }
+            }
             if (replacementCommitted)
             {
                 rollbackAttempted = true;
                 string? rollbackTemporaryPath = null;
-                if (backupPath is null || fullTarget is null || verifiedBackupHash is null || !File.Exists(backupPath))
+                if (targetWasMissing)
+                {
+                    // Keep the failed output available for inspection; the protected source remains intact.
+                    rollbackMessage = "The target was originally missing; the protected original is still available. Retry restore.";
+                }
+                else if (backupPath is null || fullTarget is null || verifiedBackupHash is null || !File.Exists(backupPath))
                 {
                     rollbackMessage = "The verified backup was unavailable for rollback.";
                 }

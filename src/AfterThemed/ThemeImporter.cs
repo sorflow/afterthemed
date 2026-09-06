@@ -3,7 +3,10 @@ using System.Text.Json;
 
 namespace DvauiThemeEditor;
 
-public sealed record ImportedTheme(string Name, IReadOnlyList<Color> Colors, ThemeSettings Suggested);
+public sealed record ImportedTheme(string Name, IReadOnlyList<Color> Colors, ThemeSettings Suggested)
+{
+    public string? SourceDescription { get; init; }
+}
 
 public static partial class ThemeImporter
 {
@@ -13,8 +16,9 @@ public static partial class ThemeImporter
     public static ImportedTheme Load(string path)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
+        if (extension == ".dll") return ThemePatcher.ExtractTheme(path);
         if (extension is not (".theme" or ".css" or ".json" or ".xml"))
-            throw new NotSupportedException("Supported theme files: .theme, .css, .json, and .xml.");
+            throw new NotSupportedException("Supported theme files: .theme, .css, .json, .xml, and DVAUI .dll files.");
         var text = File.ReadAllText(path);
         var colors = ExtractColors(text, extension is ".theme" or ".xml" or ".json", extension == ".theme");
         if (colors.Count < 2) throw new InvalidDataException("The theme file did not contain enough recognizable colors. Use #RGB/#RRGGBB, rgb(...), or numeric RGB triplets.");

@@ -43,6 +43,8 @@ ScriptUI panels are inventoried separately. AfterThemed does not pretend compile
 
 ## The workflow
 
+**Import Theme** also accepts DVAUI `.dll` files, including renamed and already-themed copies. It reads supported color tables and Spectrum JSON resources without executing or changing the donor. Recognized built-in themes retain their roles; unknown themes get inferred, editable color roles. Review the preview, then use Generate or Install for the selected target installation. The target keeps its own binary layout, allowing palette transfers across supported AE builds. This transfers the editor's palette roles, not every resource, font, or version-specific UI detail; unsupported DLL layouts are rejected.
+
 ```text
 Choose installation
         ↓
@@ -86,6 +88,34 @@ AfterThemed works on files that can stop After Effects from launching when handl
 8. Restore operations verify the recovered bytes instead of assuming the copy succeeded.
 
 Keep an external backup of important installations. Product updates, security software, permissions, disk failures, and third-party extension behavior remain outside AfterThemed's control.
+
+### Protected originals (next build)
+
+If generation or installation cannot preserve an original, the recovery dialog searches AfterThemed's originals and backup folders, including the older portable editor's Downloads folder. You can also choose another backup folder or DLL. Only Adobe-verified copies matching the selected DLL's exact build are offered. Import rechecks the copied bytes, protects the recovered original, and continues the requested operation. It does not replace the installed DLL until you run Install or Restore. This can avoid an Adobe reinstall when a clean backup still exists; if no matching original survives, a fresh Adobe installation is still required.
+
+Originals are grouped into readable AE release folders, for example:
+
+```text
+Originals/
+  After Effects 2020/
+    dvaui.dll - 14.2.0.44 [capture ID]/
+    AfterFXLib.dll - 17.1.0.72 [capture ID]/
+  After Effects 2025/
+  README.txt
+  _active/
+```
+
+The installation name determines the release label; DVA's internal version is not treated as the AE year. DLL role, exact file build, and capture identity keep companions, hotfixes, and separate installations from being merged. Unidentified installation names use an explicit unidentified-release group.
+
+On startup, with other AfterThemed windows closed, 1.3.13 organizes legacy hash-named folders without changing the captured files or verification records. Active restore references are updated atomically and remain recoverable if migration is interrupted. Conflicts and unreadable records are retained and logged, not overwritten. Both layouts remain readable by the new engine. **Use 1.3.13 or later after organization; older apps do not understand the grouped layout.** Folder labels are navigation aids, not proof that an older backup is trusted. Use the preserved-original folder button to open the library and RESTORE to recover files safely.
+
+The originals store lives in `%LOCALAPPDATA%\AfterThemed\Originals`, outside the app's installation directory. Each new capture has a primary DLL, a second recovery copy, its SHA-256 and installation identity, and a Windows DPAPI record authenticating the metadata. Files are read-only to prevent accidental edits. A snapshot becomes selectable only after all capture files are complete.
+
+Restore checks the protected record and recovered bytes before installing them. It can use the recovery copy when the primary is damaged or missing and can recreate missing native DLLs. New captures also record the adjacent `AfterFX.exe` hash; an Adobe update requires a new matching capture. Legacy snapshots are upgraded only after full Authenticode verification; modified or unverifiable legacy backups remain on disk but are not offered as clean originals.
+
+Protection is tied to the Windows user profile. It does not protect against an administrator, malicious software running as that user, loss of the disk, or loss of the profile. The companion's existing validation policy checks its Adobe signer and recognized theming markers; this is weaker than the full Authenticode policy used for a fresh `dvaui.dll`. A captured companion baseline is not independent proof of factory-original Adobe bytes. No DLLs are downloaded from third-party sites.
+
+If no verifiable original survives, repair that exact After Effects version through Creative Cloud and select it again. AfterThemed cannot reconstruct unknown original bytes from a modified DLL. Failure details are saved locally under `%LOCALAPPDATA%\AfterThemed\Logs`; nothing is uploaded automatically.
 
 ## Install
 

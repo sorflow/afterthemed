@@ -4,6 +4,36 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
 ## Unreleased
 
+### Import themes from DVAUI DLLs
+
+- Add `.dll` to Import Theme. Read supported native color tables and embedded Spectrum JSON resources directly from donor DLL data, including themed DLLs, and load an editable palette into the existing preview.
+- Recognize built-in palettes and retain their mapping settings; infer roles from frequently occurring visible colors for unknown palettes. Generate and Install apply the imported palette using the selected target's own supported layout.
+- Keep imported accent and foreground settings when reading the editor's custom/imported palette.
+
+### Original recovery
+
+- Replace the blocked native-generation path with a recovery dialog that searches current and legacy AfterThemed backups and accepts a user-selected backup folder or DLL.
+- Import only Adobe-verified backups matching the selected DLL's exact file version, identity, architecture, linker timestamp, and section layout. Verify the staged bytes again, preserve them with recovery protection, and resume the requested operation.
+- Restore can recover a missing original from an older backup before creating restore output. Cancel exits cleanly without another error/report popup.
+- Correct the distinction between a missing snapshot and a present snapshot that failed verification; include recognized built-in theme information for rejected snapshots.
+
+### Originals library
+
+- Group original snapshots by After Effects release, with readable DLL and exact-build subfolders and collision-safe capture IDs.
+- Automatically organize old hash-named folders while preserving DLL bytes, protection records, and active restore selection; retain conflicting or malformed records for inspection.
+- Recover active pointers after interrupted organization, retain compatibility with unmigrated snapshots, and serialize library access during capture, lookup, restore, and migration.
+- Add library instructions and an explicitly labeled AE-version library entry point. Organized libraries require 1.3.13 or later.
+
+### Protected originals and recovery
+
+- Captures now validate the stored bytes, serialize simultaneous captures, and publish the DLL, metadata, Windows DPAPI protection record, and recovery copy together. Published files are read-only.
+- Restore verifies authenticated metadata and SHA-256, uses the recovery copy if the primary is damaged or missing, and recreates a missing installed DLL. A damaged installed PE no longer prevents restore.
+- Unprotected legacy backups must pass Adobe Authenticode verification before they are promoted. A matching JSON hash alone no longer allows a modified legacy backup to become an original. Invalid backups are retained; incomplete same-key captures are quarantined when replaced by a valid capture.
+- Originals captured by the new engine are bound to the installation path and AfterFX.exe hash to prevent recovery into a different Adobe host build.
+- Native rollback also handles a replacement that throws after changing the target. Complete GUI operations are serialized across windows to protect shared inputs.
+- AE 2025's V2/V4/V5 companion layout is supported; recognized but incomplete companion layouts now stop generation instead of silently skipping native colors.
+- Activity and exception details persist locally in the Logs folder; startup initialization failures are handled in the UI. CI now runs the CEP apply/restore smoke test.
+
 ### Added
 
 - After Effects installations are now discovered across the whole machine instead of only the two default `Program Files` folders. The uninstall registry, Adobe's own `InstallPath` keys, and the Adobe layout on every fixed drive are merged and de-duplicated, so an installation moved off the system drive is found.

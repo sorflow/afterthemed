@@ -43,6 +43,9 @@ jobs:
       - name: Run regression tests
         run: dotnet run --project .\tests\AfterThemed.RegressionTests\AfterThemed.RegressionTests.csproj --configuration Release
 
+      - name: Verify CEP apply and restore
+        run: dotnet ".\src\AfterThemed\bin\Release\net9.0-windows\DVAUI Theme Editor.dll" --panel-smoke
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress --limit-output

@@ -23,7 +23,46 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            AppDiagnostics.Write("Unhandled failure: " + e.ExceptionObject);
+        Application.ThreadException += (_, e) =>
+        {
+            AppDiagnostics.Write("UI failure: " + e.Exception);
+            MessageBox.Show("AfterThemed encountered an unexpected error. Close and reopen it before applying further changes. " +
+                "The error details were saved in the AfterThemed Logs folder. " + e.Exception.Message,
+                "AfterThemed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Application.Exit();
+        };
         using var upgradeMutex = ApplicationLifetime.HoldUpgradeMutex();
+
+        if (args.Length == 4 && args[0] == "--recover-original")
+        {
+            UseParentConsole();
+            try
+            {
+                Console.WriteLine(OriginalDllStore.ImportVerifiedOriginal(args[1], args[2], args[3]));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return 12;
+            }
+        }
+
+        if (args.Length == 2 && args[0] == "--organize-originals")
+        {
+            UseParentConsole();
+            if (OriginalLibraryLayout.OtherAppIsOpen())
+            {
+                Console.WriteLine("Close other AfterThemed windows before organizing originals.");
+                return 10;
+            }
+            var result = OriginalLibraryLayout.Organize(args[1]);
+            Console.WriteLine($"Organized {result.Moved} snapshots by After Effects release.");
+            foreach (var warning in result.Warnings) Console.WriteLine(warning);
+            return result.Warnings.Count == 0 ? 0 : 11;
+        }
 
         if (args.Length == 6 && args[0] == "--install-theme-set-with-panel-apply")
         {
@@ -91,6 +130,8 @@ static class Program
         if (args.Length is 2 or 3 && args[0] == "--ui-snapshot")
         {
             ApplicationConfiguration.Initialize();
+            if (args.Length == 3 && args[2].Equals("RECOVER ORIGINAL", StringComparison.OrdinalIgnoreCase))
+                return SnapshotDialog(new OriginalRecoveryForm("dvaui.dll", "Originals", scanOnShow: false), args[1]);
             if (args.Length == 3 && args[2].Equals("ABOUT AFTERTHEMED", StringComparison.OrdinalIgnoreCase))
             {
                 using var about = new AboutAfterThemedForm
@@ -247,8 +288,8 @@ static class Program
             dialog.Show();
             Application.DoEvents();
             dialog.PerformLayout();
-            using var bitmap = new Bitmap(dialog.ClientSize.Width, dialog.ClientSize.Height);
-            dialog.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dialog.ClientSize));
+            using var bitmap = new Bitmap(dialog.Width, dialog.Height);
+            dialog.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dialog.Size));
             bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
             dialog.Hide();
         }
