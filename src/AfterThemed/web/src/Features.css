@@ -1,0 +1,208 @@
+/* Palette tools, contrast checks, sharing, history, gallery, restore and role highlighting. */
+:root { --ui-warn: var(--paper-warn); }
+.titlebar, .workspace > .preview-card, .workspace-switcher { --ui-warn: var(--ink-warn); }
+
+/* Shared quiet outlined button used by the new controls. */
+.palette-tools button, .theme-actions button, .contrast-warnings button, .reapply-banner button, .restore-stock {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0;
+  border: 1px solid var(--ui-border); border-radius: 20px; background: transparent; color: var(--ui-text);
+  font: inherit; font-size: 11px; font-weight: 400; white-space: nowrap; cursor: pointer;
+}
+:is(.palette-tools, .theme-actions, .contrast-warnings, .reapply-banner) button:hover, .restore-stock:hover { background: var(--ui-raised); }
+:is(.palette-tools, .theme-actions, .contrast-warnings, .reapply-banner) button:focus-visible, .restore-stock:focus-visible,
+.lock-toggle:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+:is(.palette-tools, .theme-actions) svg, .restore-stock svg { flex: none; }
+
+/* Colors tab tools. */
+.palette-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+.palette-tools button { height: 32px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; }
+.tool-note { margin: -6px 0 12px; color: var(--ui-muted); font-size: 11px; }
+
+.color-row { gap: 6px; }
+.color-row .hex-field { width: 62px; padding-inline: 2px; }
+.color-label-stack { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.color-label-stack label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.color-row .contrast-badge {
+  display: inline-flex; align-items: center; gap: 3px; color: var(--ui-muted);
+  font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help;
+}
+.color-row .contrast-badge.failing { color: var(--ui-warn); }
+.lock-toggle {
+  flex: none; display: grid; place-items: center; width: 20px; height: 24px; padding: 0;
+  border: 0; border-radius: 10px; background: transparent; color: var(--ui-subtle); cursor: pointer;
+}
+.lock-toggle:hover { background: var(--ui-raised); color: var(--ui-text); }
+.lock-toggle[aria-pressed="true"] { background: var(--ui-accent); color: var(--ui-accent-text); }
+
+.contrast-warnings { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--ui-warn); border-radius: 14px; color: var(--ui-text); font-size: 11px; }
+.contrast-warnings-heading { display: flex; align-items: center; gap: 7px; color: var(--ui-warn); }
+.contrast-warnings-heading strong { flex: 1; font-weight: 500; }
+.contrast-warnings ul { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.contrast-warnings li { display: flex; align-items: center; gap: 8px; }
+.contrast-warnings li span { flex: 1; color: var(--ui-muted); line-height: 1.35; }
+.contrast-warnings button { height: 24px; padding: 0 10px; flex: none; }
+
+/* Project card: controls keep their size and the card scrolls, instead of every control being
+   squeezed when the content is taller than the window. One 8px rhythm inside each group, 16px between groups. */
+.project-card > * { flex-shrink: 0; }
+.project-card > .project-spacer { flex-shrink: 1; min-height: 16px; }
+.project-card .import-palette {
+  width: 100%; height: 36px; margin: 8px 0 0; padding: 0 12px; justify-content: center; gap: 7px;
+  border: 1px solid var(--ui-border); border-radius: 20px; font-size: 11px;
+}
+.project-card .import-palette:hover { background: var(--ui-raised); }
+.theme-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.theme-actions button { height: 36px; padding: 0 10px; }
+.project-card .installation-details { margin-top: 16px; }
+.restore-stock { width: 100%; height: 36px; margin-top: 8px; }
+.project-card .utility-row { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.project-card .utility-row button { height: 36px; border-radius: 20px; font-size: 11px; }
+
+/* Re-apply after an After Effects update. */
+.reapply-banner {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 9px 10px 9px 12px;
+  border: 1px solid var(--ui-border); border-radius: 14px; color: var(--ui-text); font-size: 12px; line-height: 1.35;
+}
+.reapply-banner > svg { flex: none; }
+.reapply-banner > span { flex: 1; min-width: 0; }
+.reapply-banner strong { font-weight: 600; }
+.reapply-banner button { height: 28px; padding: 0 12px; flex: none; background: var(--ui-accent); color: var(--ui-accent-text); border-color: var(--ui-accent); }
+.reapply-banner button:hover { background: var(--ui-accent); filter: brightness(1.05); }
+.reapply-banner .reapply-dismiss { width: 28px; padding: 0; background: transparent; color: var(--ui-text); border-color: var(--ui-border); }
+
+/* Dialogs. */
+.install-all-row { margin: 12px 0; }
+.install-all-row input:disabled ~ .toggle-visual { opacity: .45; }
+.share-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.share-row .text-field { flex: 1; height: 40px; }
+.share-code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; letter-spacing: .02em; }
+.history-list { display: grid; gap: 8px; max-height: 52vh; overflow: auto; padding-right: 4px; }
+.history-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--ui-ring); border-radius: 14px; }
+.history-item .palette-strip { width: 84px; flex: none; }
+.history-copy { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.history-copy strong { font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-copy small { color: var(--ui-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item .dialog-button { flex: none; }
+.gallery-grid { max-height: 52vh; overflow: auto; }
+.gallery-author { display: block; margin-top: 2px; color: var(--ui-muted); font-size: 11px; font-weight: 400; }
+.restore-summary { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--ui-ring); border-radius: 14px; }
+.restore-summary > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.restore-summary small { color: var(--ui-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.restore-steps { margin: 14px 0; padding-left: 18px; color: var(--ui-text); font-size: 12px; line-height: 1.7; }
+
+@media (max-width: 760px) {
+  .history-item { flex-wrap: wrap; }
+  .history-copy { flex-basis: calc(100% - 100px); }
+}
+
+/* Danger appears in the preview as an expression error marker. */
+.ae2-layer-error { margin-left: auto; color: var(--theme-danger); font-size: 8px; }
+
+/* Hovering a color role flashes every preview region that uses it. User-triggered, so it runs
+   even with reduced motion; the !important duration beats style.css's global reduce rule. */
+@property --theme-bg { syntax: '<color>'; inherits: true; initial-value: #000; }
+@property --theme-panel { syntax: '<color>'; inherits: true; initial-value: #000; }
+@property --theme-raised { syntax: '<color>'; inherits: true; initial-value: #000; }
+@property --theme-text { syntax: '<color>'; inherits: true; initial-value: #fff; }
+@property --theme-primary { syntax: '<color>'; inherits: true; initial-value: #fff; }
+@property --theme-secondary { syntax: '<color>'; inherits: true; initial-value: #fff; }
+@property --theme-danger { syntax: '<color>'; inherits: true; initial-value: #f00; }
+.preview-stage[data-highlight] { animation: 700ms ease-in-out infinite alternate; animation-duration: 700ms !important; }
+.preview-stage[data-highlight="bg"] { animation-name: flash-bg; }
+.preview-stage[data-highlight="panel"] { animation-name: flash-panel; }
+.preview-stage[data-highlight="raised"] { animation-name: flash-raised; }
+.preview-stage[data-highlight="text"] { animation-name: flash-text; }
+.preview-stage[data-highlight="primary"] { animation-name: flash-primary; }
+.preview-stage[data-highlight="secondary"] { animation-name: flash-secondary; }
+.preview-stage[data-highlight="danger"] { animation-name: flash-danger; }
+@keyframes flash-bg { to { --theme-bg: var(--flash); } }
+@keyframes flash-panel { to { --theme-panel: var(--flash); } }
+@keyframes flash-raised { to { --theme-raised: var(--flash); } }
+@keyframes flash-text { to { --theme-text: var(--flash); } }
+@keyframes flash-primary { to { --theme-primary: var(--flash); } }
+@keyframes flash-secondary { to { --theme-secondary: var(--flash); } }
+@keyframes flash-danger { to { --theme-danger: var(--flash); } }
+
+/* Logo: glyph on the blue title bar, full tile in About. */
+.brand-mark { width: 34px; height: 34px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--paper); --logo-knockout: var(--ink); }
+.brand-mark svg { width: 34px; height: 34px; display: block; }
+.about-mark { width: 64px; height: 64px; padding: 0; background: transparent; border-radius: 0; }
+.about-mark svg { width: 64px; height: 64px; display: block; }
+
+.about-credit { gap: 12px; font-size: 11px; line-height: 1.6; }
+.about-credit p { margin: 0; }
+.about-credit strong { display: block; }
+.about-credit .about-hashtags { color: var(--ui-accent); overflow-wrap: anywhere; }
+.about-links button { gap: 10px; text-align: left; }
+.about-links button span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.about-links button svg { flex-shrink: 0; }
+.about-links .about-social-icon { width: 20px; height: 20px; }
+
+/* Tool switch in the title bar: Themes | AEP Downgrader. */
+.mode-switch { display: flex; gap: 2px; margin-left: 18px; padding: 3px; border: 1px solid var(--ui-border); border-radius: 20px; }
+.mode-switch button {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 16px;
+  background: transparent; color: var(--ui-text); font: inherit; font-size: 12px; font-weight: 400; white-space: nowrap; cursor: pointer;
+}
+.mode-switch button:hover { background: var(--ui-raised); }
+.mode-switch button[aria-selected="true"] { background: var(--ui-accent); color: var(--ui-accent-text); }
+.mode-switch button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+@media (max-width: 1100px) { .mode-switch span { display: none; } .mode-switch button { padding: 0 9px; } }
+
+/* AEP Downgrader page. */
+.downgrader { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 16px; padding: 16px; }
+.downgrader > .surface { min-height: 0; overflow: auto; border: 1px solid transparent; border-radius: 16px; padding: 28px; background: var(--ui-surface); box-shadow: none; }
+.downgrader-card { display: flex; flex-direction: column; }
+.downgrader .section-heading { margin-bottom: 22px; }
+.aep-drop {
+  display: grid; justify-items: center; gap: 6px; padding: 34px 20px; border: 1px dashed var(--ui-border); border-radius: 22px;
+  color: var(--ui-text); text-align: center; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+.aep-drop strong { font-size: 15px; font-weight: 500; }
+.aep-drop span { color: var(--ui-muted); font-size: 12px; }
+.aep-drop:hover, .aep-drop.dragging { background: var(--ui-raised); border-color: var(--ui-accent); border-style: solid; }
+.aep-drop:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.aep-drop[aria-disabled="true"] { opacity: .55; cursor: progress; }
+.downgrader .tool-note { margin: 10px 0 0; }
+.aep-target { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.aep-target .field-label { margin: 0; }
+.aep-target-options { display: flex; gap: 6px; }
+.aep-target-options button {
+  height: 34px; padding: 0 14px; border: 1px solid var(--ui-border); border-radius: 18px; background: transparent;
+  color: var(--ui-text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.aep-target-options button:hover { background: var(--ui-raised); }
+.aep-target-options button[aria-checked="true"] { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-accent-text); }
+.aep-target-options button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.aep-list { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.aep-row { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border: 1px solid var(--ui-ring); border-radius: 16px; }
+.aep-row .installation-symbol { flex: none; }
+.aep-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.aep-copy strong { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aep-copy small { color: var(--ui-muted); font-size: 11px; line-height: 1.35; }
+.aep-row[data-status="error"] .aep-detail { color: var(--ui-warn); }
+.aep-status { flex: none; padding: 4px 10px; border: 1px solid var(--ui-ring); border-radius: 12px; color: var(--ui-muted); font-size: 11px; white-space: nowrap; }
+.aep-status.ready { border-color: var(--ui-accent); color: var(--ui-text); }
+.aep-status.converting { border-color: var(--ui-accent); color: var(--ui-text); animation: aep-pulse 1s ease-in-out infinite alternate; animation-duration: 1s !important; }
+.aep-status.done { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-accent-text); }
+.aep-status.error { border-color: var(--ui-warn); color: var(--ui-warn); }
+@keyframes aep-pulse { to { opacity: .45; } }
+.aep-row-action, .aep-remove {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; border: 1px solid var(--ui-border);
+  border-radius: 14px; background: transparent; color: var(--ui-text); font: inherit; font-size: 11px; cursor: pointer;
+}
+.aep-row-action { padding: 0 10px; }
+.aep-remove { width: 28px; padding: 0; border-color: transparent; color: var(--ui-subtle); }
+:is(.aep-row-action, .aep-remove):hover:not(:disabled) { background: var(--ui-raised); color: var(--ui-text); }
+:is(.aep-row-action, .aep-remove):focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.aep-remove:disabled { opacity: .4; cursor: default; }
+.aep-actions { margin-top: auto; padding-top: 20px; }
+.downgrader-info .restore-steps { margin-top: 0; }
+.downgrader-footnote { margin: 14px 0 0; color: var(--ui-muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 860px) {
+  .downgrader { grid-template-columns: 1fr; overflow: auto; }
+  .downgrader > .surface { min-height: auto; overflow: visible; padding: 20px; }
+  .aep-row { flex-wrap: wrap; }
+  .aep-copy { flex-basis: calc(100% - 56px); }
+  .aep-status { margin-left: 50px; }
+}

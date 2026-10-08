@@ -1,0 +1,84 @@
+{
+  "themes": [
+    {
+      "format": "afterthemed",
+      "version": 1,
+      "name": "Neon Tokyo",
+      "author": "AfterThemed",
+      "roles": {
+        "background": "#120F1A",
+        "panel": "#1C1726",
+        "raised": "#2A2238",
+        "text": "#ECE6F7",
+        "primary": "#FF4FB8",
+        "secondary": "#3EE6FF",
+        "danger": "#FF5D6C"
+      },
+      "mapping": {
+        "textCutoff": 0.6,
+        "exactAccents": true,
+        "foregroundAlphaFloor": 0.55
+      }
+    },
+    {
+      "format": "afterthemed",
+      "version": 1,
+      "name": "Film Noir",
+      "author": "AfterThemed",
+      "roles": {
+        "background": "#121212",
+        "panel": "#1C1C1C",
+        "raised": "#2A2A2A",
+        "text": "#E8E4DC",
+        "primary": "#D9B26A",
+        "secondary": "#8FA3B8",
+        "danger": "#D9665B"
+      },
+      "mapping": {
+        "textCutoff": 0.6,
+        "exactAccents": true,
+        "foregroundAlphaFloor": 0.55
+      }
+    },
+    {
+      "format": "afterthemed",
+      "version": 1,
+      "name": "Ember",
+      "author": "AfterThemed",
+      "roles": {
+        "background": "#1A1412",
+        "panel": "#261D19",
+        "raised": "#382A24",
+        "text": "#F0E2DA",
+        "primary": "#FF8A4C",
+        "secondary": "#F5C451",
+        "danger": "#FF5A5A"
+      },
+      "mapping": {
+        "textCutoff": 0.6,
+        "exactAccents": true,
+        "foregroundAlphaFloor": 0.55
+      }
+    },
+    {
+      "format": "afterthemed",
+      "version": 1,
+      "name": "Mint Studio",
+      "author": "AfterThemed",
+      "roles": {
+        "background": "#E6F2EE",
+        "panel": "#F1F8F5",
+        "raised": "#FFFFFF",
+        "text": "#20352E",
+        "primary": "#1F8A6A",
+        "secondary": "#3A6FB0",
+        "danger": "#B8323F"
+      },
+      "mapping": {
+        "textCutoff": 0.7,
+        "exactAccents": true,
+        "foregroundAlphaFloor": 0.45
+      }
+    }
+  ]
+}

@@ -9,6 +9,8 @@
 **/bin/
 **/obj/
 **/artifacts/
+**/node_modules/
+src/AfterThemed/web/dist/
 *.pdb
 *.nupkg
 

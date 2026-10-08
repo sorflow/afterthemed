@@ -56,6 +56,7 @@ function Build-TestInstaller {
         "/DMyAppUninstallKey=$uninstallKeyName",
         "/DMyAppDefaultDir=$installRoot",
         "/DMyAppMutex=$mutexName",
+        "/DMyAppAssociations=0",
         "/O$buildRoot",
         "/F$OutputName",
         ('"' + $installerScript + '"')
@@ -82,6 +83,9 @@ try {
     $newRegistration = Get-ItemProperty -LiteralPath $registryPath
     if ($newRegistration.DisplayVersion -ne '1.3.13') {
         throw "Expected the upgraded registration to be 1.3.13; got $($newRegistration.DisplayVersion)."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'WebUi\index.html') -PathType Leaf)) {
+        throw 'The installed React editor is missing its bundled index.html.'
     }
     $uninstallers = @(Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe')
     if ($uninstallers.Count -ne 1) {

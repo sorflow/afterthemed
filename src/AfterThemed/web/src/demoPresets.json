@@ -1,0 +1,652 @@
+[
+  {
+    "label": "Cyberpunk Burgundy",
+    "colors": [
+      "#6F0623",
+      "#6F0623",
+      "#B10A3A",
+      "#FCEE0A",
+      "#FCEE0A",
+      "#00F0FF",
+      "#FF003C"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Gruvbox Dark",
+    "colors": [
+      "#1D2021",
+      "#282828",
+      "#504945",
+      "#EBDBB2",
+      "#FABD2F",
+      "#8EC07C",
+      "#FB4934"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Gruvbox Light",
+    "colors": [
+      "#FBF1C7",
+      "#F2E5BC",
+      "#D5C4A1",
+      "#3C3836",
+      "#B57614",
+      "#427B58",
+      "#9D0006"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Material Lavender (M3)",
+    "colors": [
+      "#FFFAFA",
+      "#FFFAFA",
+      "#F0EAF7",
+      "#301A49",
+      "#9F82D9",
+      "#6F559F",
+      "#BA1A1A"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Material Lavender Rich (M3)",
+    "colors": [
+      "#F1EAF7",
+      "#E6DAF1",
+      "#CDBBE4",
+      "#2F1946",
+      "#9F82D9",
+      "#6F559F",
+      "#B3261E"
+    ],
+    "cutoff": 70.0
+  },
+  {
+    "label": "Hatsune Miku Accessible",
+    "colors": [
+      "#1F2527",
+      "#242F31",
+      "#29383A",
+      "#BEC8D1",
+      "#86CECB",
+      "#59C9CC",
+      "#FF9ACC"
+    ],
+    "cutoff": 62.0
+  },
+  {
+    "label": "Catppuccin Mocha",
+    "colors": [
+      "#1E1E2E",
+      "#313244",
+      "#45475A",
+      "#CDD6F4",
+      "#CBA6F7",
+      "#89B4FA",
+      "#F38BA8"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Nord",
+    "colors": [
+      "#2E3440",
+      "#3B4252",
+      "#434C5E",
+      "#D8DEE9",
+      "#88C0D0",
+      "#81A1C1",
+      "#BF616A"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Everforest",
+    "colors": [
+      "#2D353B",
+      "#343F44",
+      "#3D484D",
+      "#D3C6AA",
+      "#A7C080",
+      "#7FBBB3",
+      "#E67E80"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Tokyo Night",
+    "colors": [
+      "#1A1B26",
+      "#1F2335",
+      "#292E42",
+      "#C0CAF5",
+      "#7AA2F7",
+      "#BB9AF7",
+      "#F7768E"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Kanagawa",
+    "colors": [
+      "#1F1F28",
+      "#2A2A37",
+      "#363646",
+      "#DCD7BA",
+      "#7E9CD8",
+      "#957FB8",
+      "#C34043"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Ros\u00e9 Pine",
+    "colors": [
+      "#191724",
+      "#1F1D2E",
+      "#26233A",
+      "#E0DEF4",
+      "#C4A7E7",
+      "#9CCFD8",
+      "#EB6F92"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Dracula",
+    "colors": [
+      "#282A36",
+      "#343746",
+      "#44475A",
+      "#F8F8F2",
+      "#BD93F9",
+      "#8BE9FD",
+      "#FF5555"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "One Dark Pro",
+    "colors": [
+      "#282C34",
+      "#2C313A",
+      "#323842",
+      "#ABB2BF",
+      "#61AFEF",
+      "#C678DD",
+      "#E06C75"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Solarized Dark",
+    "colors": [
+      "#002B36",
+      "#073642",
+      "#0B4D5C",
+      "#839496",
+      "#268BD2",
+      "#2AA198",
+      "#DC322F"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Solarized Light",
+    "colors": [
+      "#FDF6E3",
+      "#EEE8D5",
+      "#E4DCC3",
+      "#657B83",
+      "#268BD2",
+      "#2AA198",
+      "#DC322F"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Monokai",
+    "colors": [
+      "#272822",
+      "#3E3D32",
+      "#49483E",
+      "#F8F8F2",
+      "#F92672",
+      "#A6E22E",
+      "#FD971F"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Ayu Dark",
+    "colors": [
+      "#0D1017",
+      "#10141C",
+      "#141821",
+      "#BFBDB6",
+      "#E6B450",
+      "#59C2FF",
+      "#D95757"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Night Owl",
+    "colors": [
+      "#011627",
+      "#0B2942",
+      "#1D3B53",
+      "#D6DEEB",
+      "#82AAFF",
+      "#7FDBCA",
+      "#EF5350"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Oxocarbon",
+    "colors": [
+      "#161616",
+      "#262626",
+      "#393939",
+      "#F2F4F8",
+      "#3DDBD9",
+      "#BE95FF",
+      "#EE5396"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Synthwave '84",
+    "colors": [
+      "#262335",
+      "#241B2F",
+      "#463465",
+      "#FFFFFF",
+      "#FF7EDB",
+      "#36F9F6",
+      "#FE4450"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Material Palenight",
+    "colors": [
+      "#292D3E",
+      "#32374D",
+      "#444267",
+      "#959DCB",
+      "#C792EA",
+      "#82AAFF",
+      "#EF5350"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Titanium",
+    "colors": [
+      "#181B20",
+      "#242930",
+      "#343C47",
+      "#DCE2EA",
+      "#8CB4FF",
+      "#A6C8C0",
+      "#EB8796"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Deep Sea",
+    "colors": [
+      "#101D24",
+      "#1B2D36",
+      "#2B414D",
+      "#D7E8ED",
+      "#56C5CB",
+      "#8CAEF0",
+      "#F08D96"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Plum Studio",
+    "colors": [
+      "#211923",
+      "#302536",
+      "#44344C",
+      "#E8DDEB",
+      "#BC9BE8",
+      "#E6A7BC",
+      "#F18B92"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Copper",
+    "colors": [
+      "#211D1A",
+      "#302923",
+      "#463A30",
+      "#E8DED3",
+      "#E5AA78",
+      "#91B7AB",
+      "#EE8D80"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Moss",
+    "colors": [
+      "#191F1B",
+      "#263029",
+      "#38463C",
+      "#DFE8DB",
+      "#A5C78C",
+      "#D7BE83",
+      "#EA918A"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Monochrome",
+    "colors": [
+      "#171717",
+      "#262626",
+      "#3A3A3A",
+      "#E3E3E3",
+      "#C6CFDD",
+      "#909EAF",
+      "#E89198"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Electric Violet",
+    "colors": [
+      "#181529",
+      "#27223C",
+      "#3A3156",
+      "#E5E0F5",
+      "#A88AFF",
+      "#65D4D2",
+      "#F08DAA"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Arctic",
+    "colors": [
+      "#DEE5EB",
+      "#EDF2F6",
+      "#FFFFFF",
+      "#293847",
+      "#356AA6",
+      "#327B78",
+      "#AD354A"
+    ],
+    "cutoff": 70
+  },
+  {
+    "label": "Warm Paper",
+    "colors": [
+      "#E5DFD3",
+      "#F3EDE2",
+      "#FFFBF4",
+      "#403B33",
+      "#8B5E37",
+      "#4B7466",
+      "#AC3D39"
+    ],
+    "cutoff": 70
+  },
+  {
+    "label": "Cherry Graphite",
+    "colors": [
+      "#1D1A1D",
+      "#2B252B",
+      "#40353E",
+      "#E9DFE5",
+      "#E898B1",
+      "#A5AFE3",
+      "#F08088"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Catppuccin Macchiato",
+    "colors": [
+      "#24273A",
+      "#363A4F",
+      "#494D64",
+      "#CAD3F5",
+      "#C6A0F6",
+      "#8AADF4",
+      "#ED8796"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Catppuccin Frapp\u00e9",
+    "colors": [
+      "#303446",
+      "#414559",
+      "#51576D",
+      "#C6D0F5",
+      "#CA9EE6",
+      "#8CAAEE",
+      "#E78284"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Catppuccin Latte",
+    "colors": [
+      "#EFF1F5",
+      "#E6E9EF",
+      "#CCD0DA",
+      "#4C4F69",
+      "#8839EF",
+      "#1E66F5",
+      "#D20F39"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Ros\u00e9 Pine Moon",
+    "colors": [
+      "#232136",
+      "#2A273F",
+      "#393552",
+      "#E0DEF4",
+      "#C4A7E7",
+      "#9CCFD8",
+      "#EB6F92"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Ros\u00e9 Pine Dawn",
+    "colors": [
+      "#FAF4ED",
+      "#FFFAF3",
+      "#F2E9E1",
+      "#575279",
+      "#907AA9",
+      "#56949F",
+      "#B4637A"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Tokyo Night Storm",
+    "colors": [
+      "#24283B",
+      "#292E42",
+      "#3B4261",
+      "#C0CAF5",
+      "#7AA2F7",
+      "#BB9AF7",
+      "#F7768E"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Everforest Light",
+    "colors": [
+      "#FDF6E3",
+      "#F4F0D9",
+      "#EFEBD4",
+      "#5C6A72",
+      "#8DA101",
+      "#35A77C",
+      "#F85552"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Ayu Mirage",
+    "colors": [
+      "#1F2430",
+      "#242936",
+      "#2D3340",
+      "#CCCAC2",
+      "#FFCC66",
+      "#73D0FF",
+      "#FF6666"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Nightfox",
+    "colors": [
+      "#192330",
+      "#212E3F",
+      "#29394F",
+      "#CDCECF",
+      "#719CD6",
+      "#63CDCF",
+      "#C94F6D"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Poimandres",
+    "colors": [
+      "#1B1E28",
+      "#252B37",
+      "#303340",
+      "#E4F0FB",
+      "#5DE4C7",
+      "#89DDFF",
+      "#D0679D"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Vesper",
+    "colors": [
+      "#101010",
+      "#161616",
+      "#232323",
+      "#E6E6E6",
+      "#FFC799",
+      "#99FFE4",
+      "#FF8080"
+    ],
+    "cutoff": 43.0
+  },
+  {
+    "label": "Graphite Amber",
+    "colors": [
+      "#1A1A1C",
+      "#252528",
+      "#36363B",
+      "#E4E2DE",
+      "#F2B45A",
+      "#7FB2D9",
+      "#E8786E"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Sunset Dusk",
+    "colors": [
+      "#1E1820",
+      "#2B2230",
+      "#3D3044",
+      "#EDE0E6",
+      "#FF9E6D",
+      "#C59BFF",
+      "#FF6F86"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Sakura",
+    "colors": [
+      "#F3E8EC",
+      "#FAF2F5",
+      "#FFFFFF",
+      "#3E2E36",
+      "#B4466E",
+      "#4F7A8C",
+      "#B3263A"
+    ],
+    "cutoff": 70
+  },
+  {
+    "label": "Harvest",
+    "colors": [
+      "#1F1712",
+      "#2B2018",
+      "#3D2D21",
+      "#EFE2D3",
+      "#E8873A",
+      "#D9B04C",
+      "#E2605A"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Maple",
+    "colors": [
+      "#1E1414",
+      "#2C1C1B",
+      "#402826",
+      "#F1E1DC",
+      "#E2683F",
+      "#E6B65A",
+      "#F0606C"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Forest Floor",
+    "colors": [
+      "#181C15",
+      "#232A1F",
+      "#34402D",
+      "#E6E6D6",
+      "#C9973A",
+      "#9DB46E",
+      "#E07A5F"
+    ],
+    "cutoff": 60
+  },
+  {
+    "label": "Golden Hour",
+    "colors": [
+      "#F4E6CF",
+      "#FAF0DF",
+      "#FFFAF1",
+      "#3B2A1C",
+      "#A9560F",
+      "#6E7F2E",
+      "#A3262A"
+    ],
+    "cutoff": 70
+  }
+]

@@ -1,0 +1,90 @@
+/* Compact 126 x 36 reference button with the outlined, animated pixel finish. */
+.title-actions .pixel-install-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  flex: none;
+  width: 126px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--paper-ring);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px #ffffff24, inset 0 1px 0 #ffffff38, 0 1px 2px #0002;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+.title-actions .pixel-install-button:hover {
+  background: var(--paper);
+  border-color: var(--ink-ring);
+  box-shadow: inset 0 0 0 1px #ffffff30, inset 0 1px 0 #ffffff48, 0 1px 3px #0003;
+  filter: none;
+}
+.title-actions .pixel-install-button:active { scale: 1; }
+.title-actions .pixel-install-button:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
+.install-pixel-field {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.install-pixel {
+  fill: var(--ink);
+  opacity: var(--pixel-alpha);
+
+}
+.install-button-content { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.install-button-star { width: 14px; height: 14px; flex: none; }
+.pixel-install-button .install-theme-label { color: inherit; font: inherit; letter-spacing: inherit; }
+/* Hover: a scanline sweeps left to right, each pixel flashes a theme color, then settles into a solid
+   blue dither fill and the label turns ice-white. Busy: the sweep loops over the filled pill.
+   User-triggered, so not gated on reduced motion; !important durations beat style.css's global reduce rule. */
+.title-actions .pixel-install-button:is(:hover, :focus-visible, [aria-busy="true"]) {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+  transition: background-color 0s 720ms, color 0s 520ms, border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+.pixel-install-button:is(:hover, :focus-visible) .install-pixel {
+  animation: install-pixel-dissolve 320ms linear var(--pixel-fill-delay) both;
+  animation-duration: 320ms !important;
+}
+.pixel-install-button[aria-busy="true"] .install-pixel {
+  animation: install-pixel-scan 1.4s linear var(--pixel-scan-delay) infinite both;
+  animation-duration: 1.4s !important;
+}
+@keyframes install-pixel-dissolve {
+  0% { opacity: var(--pixel-alpha); fill: var(--ink); }
+  1%, 45% { opacity: 1; fill: var(--pixel-tint); }
+  100% { opacity: 1; fill: var(--ink); }
+}
+@keyframes install-pixel-scan {
+  0% { opacity: 1; fill: var(--ink); }
+  1% { opacity: 1; fill: var(--pixel-tint); }
+  13%, 100% { opacity: 1; fill: var(--ink); }
+}
+
+.title-actions .pixel-generate-button { position: relative; isolation: isolate; overflow: hidden;
+  width: 104px; padding-inline: 10px; }
+.pixel-generate-button .install-pixel { fill: currentColor; }
+.generate-button-content { display: inline-flex; align-items: center; gap: 7px; }
+.title-actions .pixel-install-button:disabled { opacity: 1; cursor: progress; }
+.action-status-announcement { position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.pixel-generate-button .install-pixel-fill { display: none; }
+.pixel-generate-button:is(:hover, :focus-visible) .install-pixel {
+  animation: install-pixel-twinkle calc(var(--pixel-duration) * 0.4) ease-in-out var(--pixel-delay) infinite;
+  animation-duration: calc(var(--pixel-duration) * 0.4) !important;
+}
+@keyframes install-pixel-twinkle {
+  0%, 100% { opacity: var(--pixel-alpha); }
+  50% { opacity: calc(var(--pixel-alpha) * 3 + .12); }
+}

@@ -1,0 +1,49 @@
+/* Base colors of the editor's appearance. Every surface token in ReferenceBlue.css, the Install
+   button and the logo derive from these, so an appearance palette only has to redefine this set. */
+:root {
+  --ink: #100bea;          /* the bold field: title bar, preview card, primary actions */
+  --ink-raised: #2b26ee;
+  --ink-hover: #403bf1;
+  --ink-ring: #7978ff;
+  --ink-line: #a8b6ff;     /* outlined buttons on ink */
+  --ink-muted: #d0daff;    /* secondary text on ink */
+  --ink-subtle: #b4c2ff;
+  --ink-deep: #10104d;     /* Midnight shell */
+  --ink-warn: #ffc2d6;
+  --paper: #edf5ff;        /* the light surfaces */
+  --paper-raised: #e1ebff;
+  --paper-hover: #d0ddff;
+  --paper-soft: #d9e3ff;
+  --paper-ring: #a8b6eb;
+  --paper-border: #8794dc;
+  --paper-muted: #4546a2;  /* secondary text on paper */
+  --paper-subtle: #6668b0;
+  --paper-warn: #c2185b;
+  --backdrop: rgb(10 8 92 / .58);
+  --shadow-ink: rgb(8 6 90 / .22);
+}
+
+/* Fall: ember orange on warm cream, cocoa for the deepest shade. Contrast (WCAG):
+   ink/paper 6.2, paper-muted/paper 7.2, ink-muted/ink 5.5, paper/ink-raised 5.1, paper-border/paper 3.1. */
+:root[data-ui-palette="fall"] {
+  --ink: #a43700;
+  --ink-raised: #b64300;
+  --ink-hover: #c1500e;
+  --ink-ring: #db8650;
+  --ink-line: #efb58c;
+  --ink-muted: #f7e5cf;
+  --ink-subtle: #efc9a4;
+  --ink-deep: #391609;
+  --ink-warn: #feeba6;
+  --paper: #fef5ea;
+  --paper-raised: #fbecdb;
+  --paper-hover: #f9e2cb;
+  --paper-soft: #fae6d1;
+  --paper-ring: #e4b290;
+  --paper-border: #c2744e;
+  --paper-muted: #833f27;
+  --paper-subtle: #9d6044;
+  --paper-warn: #9a1c2e;
+  --backdrop: rgb(57 22 9 / .58);
+  --shadow-ink: rgb(57 22 9 / .22);
+}

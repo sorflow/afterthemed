@@ -1,8 +1,9 @@
-name: Build
+name: Build and release
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -15,10 +16,24 @@ jobs:
     name: Windows x64
     runs-on: windows-latest
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate release version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { '' }
+          $version = .\src\AfterThemed\Installer\Get-ReleaseVersion.ps1 -Tag $tag
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test release scripts
+        shell: pwsh
+        run: .\tests\ReleasePipeline.Tests.ps1
 
       - name: Reject committed binaries
         shell: pwsh
@@ -33,6 +48,13 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/AfterThemed/web/package-lock.json
 
       - name: Restore
         run: dotnet restore .\src\AfterThemed\DvauiThemeEditor.csproj
@@ -58,13 +80,48 @@ jobs:
         shell: pwsh
         run: .\tests\InstallerUpgrade.Integration.ps1 -InnoCompiler "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
+      - name: Stage release files
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item -LiteralPath "src/AfterThemed/artifacts/installer/AfterThemed-Setup-$env:RELEASE_VERSION.exe" -Destination dist
+          Copy-Item -LiteralPath 'src/AfterThemed/artifacts/installer/SHA256SUMS.txt', 'EULA.txt', 'LICENSE.txt' -Destination dist
+
       - name: Upload unsigned build artifact
         uses: actions/upload-artifact@v4
         with:
           name: AfterThemed-windows-x64
-          path: |
-            src/AfterThemed/artifacts/installer/AfterThemed-Setup-*.exe
-            EULA.txt
-            LICENSE.txt
+          path: dist/*
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    needs: windows-x64
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out release scripts
+        uses: actions/checkout@v4
+
+      - name: Download tested installer
+        uses: actions/download-artifact@v4
+        with:
+          name: AfterThemed-windows-x64
+          path: dist
+
+      - name: Publish complete release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.windows-x64.outputs.version }}
+        run: .\scripts\Publish-Release.ps1 -Tag $env:GITHUB_REF_NAME -Version $env:RELEASE_VERSION -ArtifactDirectory .\dist

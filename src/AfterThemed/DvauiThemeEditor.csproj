@@ -24,4 +24,27 @@
     <InternalsVisibleTo Include="AfterThemed.RegressionTests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
+  <Target Name="BuildWebUi" BeforeTargets="PrepareForBuild" Condition="Exists('web\package.json')">
+    <Exec Command="npm ci" WorkingDirectory="web" Condition="!Exists('web\node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="web" />
+  </Target>
+
+  <Target Name="CopyWebUiToOutput" AfterTargets="Build" Condition="Exists('web\dist\index.html')">
+    <ItemGroup>
+      <WebUiAsset Include="web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WebUiAsset)" DestinationFiles="@(WebUiAsset->'$(TargetDir)WebUi\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyWebUiToPublish" AfterTargets="Publish" Condition="Exists('web\dist\index.html')">
+    <ItemGroup>
+      <WebUiPublishAsset Include="web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WebUiPublishAsset)" DestinationFiles="@(WebUiPublishAsset->'$(PublishDir)WebUi\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

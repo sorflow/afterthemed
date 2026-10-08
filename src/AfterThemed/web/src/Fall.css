@@ -1,0 +1,61 @@
+/* Fall appearance details beyond the base colors in Palette.css. Loaded last so it overrides the
+   shared reference rules only when [data-ui-palette="fall"] is set. Contrast (WCAG):
+   cream on field 7.7, gold focus on field 5.3, mustard focus on cream 5.7, cream on cocoa 15.1,
+   cocoa on gold (Done chip) 10.2. */
+:root[data-ui-palette="fall"] {
+  --ink-field: #902a00;   /* large areas: a calmer, deeper ember than the buttons */
+  --mustard: #8a5600;     /* second accent on cream */
+  --gold: #f5c761;        /* second accent on ember and cocoa */
+  --cocoa-raised: #4b2315;
+  --cocoa-hover: #5b2f1e;
+  --cocoa-muted: #e4ccb6;
+  --ui-shell: var(--ink-field);
+  --ui-workspace: var(--ink-field);
+}
+
+/* Softer ember on large areas; buttons keep the brighter ember. */
+:root[data-ui-palette="fall"] .titlebar { background: var(--ink-field); --ui-surface: var(--ink-field); }
+:root[data-ui-palette="fall"] .workspace-switcher { --ui-surface: var(--ink-field); }
+:root[data-ui-palette="fall"] .brand-mark { --logo-knockout: var(--ink-field); }
+
+/* Deeper preview card: cocoa bark with ember outlines, so the After Effects preview stands out. */
+:root[data-ui-palette="fall"] .workspace > .preview-card {
+  --ui-surface: var(--ink-deep);
+  --ui-raised: var(--cocoa-raised);
+  --ui-raised-hover: var(--cocoa-hover);
+  --ui-muted: var(--cocoa-muted);
+  --ui-subtle: var(--cocoa-muted);
+  --ui-ring: var(--ink-hover);
+  --ui-border: var(--ink-hover);
+  --ui-accent-text: var(--ink-deep);
+  --ui-accent-soft: var(--cocoa-raised);
+  --logo-knockout: var(--ink-deep);
+}
+
+/* Second accent: gold and mustard for small signals. */
+:root[data-ui-palette="fall"] .live-indicator { background: var(--gold); box-shadow: 0 0 0 3px rgb(245 199 97 / .2); }
+:root[data-ui-palette="fall"] :focus-visible { outline-color: var(--mustard) !important; }
+:root[data-ui-palette="fall"] :is(.titlebar, .preview-card, .workspace-switcher) :focus-visible { outline-color: var(--gold) !important; }
+:root[data-ui-palette="fall"] .aep-status.done { background: var(--gold); border-color: var(--mustard); color: var(--ink-deep); }
+:root[data-ui-palette="fall"] .palette-option[aria-pressed="true"] { border-color: var(--mustard); }
+
+/* Paper grain: a faint printed texture on the cream panels only. */
+:root[data-ui-palette="fall"] :is(.workspace > .project-card, .workspace > .inspector-card, .app-dialog, .downgrader > .surface) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .17 0 0 0 0 .06 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Logo: the sparkle becomes a leaf in Fall. */
+.logo-leaf { display: none; }
+:root[data-ui-palette="fall"] .logo-leaf { display: inline; }
+:root[data-ui-palette="fall"] .logo-star { display: none; }
+
+/* Suggest a fall After Effects palette, and filter the browser to them. */
+.fall-suggestion, .palette-featured-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--mustard);
+  border-radius: 20px; background: transparent; color: var(--mustard); font: inherit; font-size: 11px; cursor: pointer;
+}
+.fall-suggestion { width: 100%; height: 34px; margin-top: 8px; }
+.palette-featured-toggle { height: 28px; padding: 0 10px; flex: none; }
+.fall-suggestion:hover, .palette-featured-toggle:hover { background: var(--paper-raised); }
+.palette-featured-toggle[aria-pressed="true"] { background: var(--gold); border-color: var(--mustard); color: var(--ink-deep); }

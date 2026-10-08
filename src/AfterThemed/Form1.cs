@@ -7,6 +7,9 @@ namespace DvauiThemeEditor;
 
 public partial class Form1 : Form
 {
+    // The reference card corners measure about 78 pixels in a roughly 2x export.
+    private const int SurfaceRadius = 40;
+
     private enum PanelInstallAction { None, Apply, Restore }
     private sealed record GeneratedThemeFiles(string NativePath, LegacyAeThemeCompanion? Companion);
 
@@ -28,6 +31,7 @@ public partial class Form1 : Form
     private readonly Dictionary<string, TextBox> colorBoxes = new();
     private IReadOnlyList<Color> importedColors = Array.Empty<Color>();
     private readonly bool suppressStartupPrompts;
+    private readonly bool useWebUi;
     private VerbatimColorPickerForm? activeColorPicker;
     private Panel? titleBar;
     private bool updateCheckStarted;
@@ -58,6 +62,34 @@ public partial class Form1 : Form
         ("Oxocarbon", ThemeSettings.Oxocarbon),
         ("Synthwave '84", ThemeSettings.Synthwave84),
         ("Material Palenight", ThemeSettings.MaterialPalenight),
+        ("Titanium", ThemeSettings.Titanium),
+        ("Deep Sea", ThemeSettings.DeepSea),
+        ("Plum Studio", ThemeSettings.PlumStudio),
+        ("Copper", ThemeSettings.Copper),
+        ("Moss", ThemeSettings.Moss),
+        ("Monochrome", ThemeSettings.Monochrome),
+        ("Electric Violet", ThemeSettings.ElectricViolet),
+        ("Arctic", ThemeSettings.Arctic),
+        ("Warm Paper", ThemeSettings.WarmPaper),
+        ("Cherry Graphite", ThemeSettings.CherryGraphite),
+        ("Catppuccin Macchiato", ThemeSettings.CatppuccinMacchiato),
+        ("Catppuccin Frappé", ThemeSettings.CatppuccinFrappe),
+        ("Catppuccin Latte", ThemeSettings.CatppuccinLatte),
+        ("Rosé Pine Moon", ThemeSettings.RosePineMoon),
+        ("Rosé Pine Dawn", ThemeSettings.RosePineDawn),
+        ("Tokyo Night Storm", ThemeSettings.TokyoNightStorm),
+        ("Everforest Light", ThemeSettings.EverforestLight),
+        ("Ayu Mirage", ThemeSettings.AyuMirage),
+        ("Nightfox", ThemeSettings.Nightfox),
+        ("Poimandres", ThemeSettings.Poimandres),
+        ("Vesper", ThemeSettings.Vesper),
+        ("Graphite Amber", ThemeSettings.GraphiteAmber),
+        ("Sunset Dusk", ThemeSettings.SunsetDusk),
+        ("Sakura", ThemeSettings.Sakura),
+        ("Harvest", ThemeSettings.Harvest),
+        ("Maple", ThemeSettings.Maple),
+        ("Forest Floor", ThemeSettings.ForestFloor),
+        ("Golden Hour", ThemeSettings.GoldenHour),
     ];
 
     private string DataRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AfterThemed");
@@ -69,14 +101,19 @@ public partial class Form1 : Form
     private string PanelThemeFile => Path.Combine(DataRoot, "panel-theme.json");
     private string PanelReportFile => Path.Combine(DataRoot, "panel-operation.json");
     private string LastTargetFile => Path.Combine(DataRoot, "last-target.txt");
+    private string HistoryFile => Path.Combine(DataRoot, "theme-history.json");
+    private string InstallAllFile => Path.Combine(DataRoot, "install-all.txt");
+    private string SessionFile => Path.Combine(DataRoot, "last-session.json");
 
     /// <summary>
     /// <paramref name="suppressStartupPrompts"/> keeps the startup chooser closed for the offscreen
     /// snapshot runs, which have no user to answer a modal.
     /// </summary>
-    public Form1(bool suppressStartupPrompts = false)
+    public Form1(bool suppressStartupPrompts = false, bool forceWebUi = false, string? startupFile = null)
     {
         this.suppressStartupPrompts = suppressStartupPrompts;
+        pendingOpenFile = startupFile;
+        useWebUi = !suppressStartupPrompts || forceWebUi;
         InitializeComponent();
         var executableIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         if (executableIcon is not null) Icon = executableIcon;
@@ -88,21 +125,39 @@ public partial class Form1 : Form
     protected override async void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        if (useWebUi) StartWebUi();
         if (suppressStartupPrompts || updateCheckStarted) return;
 
         updateCheckStarted = true;
         try
         {
             var update = await UpdateChecker.CheckLatestAsync(UpdateChecker.CurrentVersion());
-            if (update is null || IsDisposed) return;
+            if (update is null || IsDisposed || Disposing) return;
+
+            var preferences = new UpdatePreferences(DataRoot);
+            if (!preferences.ShouldNotify(update.LatestVersion)) return;
 
             Log($"Update available · {update.TagName}");
             using var form = new UpdateAvailableForm(update);
-            form.ShowDialog(this);
+            if (form.ShowDialog(this) == DialogResult.Ignore)
+            {
+                try
+                {
+                    preferences.Ignore(update.LatestVersion);
+                    Log($"Update ignored · {update.TagName}");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Log($"Unable to remember ignored update · {ex.Message}");
+                    MessageBox.Show(this, "This update was dismissed, but your choice could not be saved. " +
+                        "You may be asked again next time you open AfterThemed.\n\n" + ex.Message,
+                        "Unable to save update preference", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
         }
         catch (Exception ex)
         {
-            Log($"Update check skipped · {ex.Message}");
+            if (!IsDisposed && !Disposing) Log($"Update check skipped · {ex.Message}");
         }
     }
 
@@ -118,10 +173,8 @@ public partial class Form1 : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        // 56 = the title bar's own 3px margins + its 6px vertical padding + the 38px action track.
-        // At 50 the track was six pixels taller than the space it sat in and its bottom outline was
-        // clipped away.
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        // Keep the action track inside the title bar with room above and below its outline.
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(shell);
 
@@ -132,12 +185,12 @@ public partial class Form1 : Form
         {
             Dock = DockStyle.Fill,
             BackColor = UiPalette.Window,
-            Padding = new Padding(10, 2, 10, 10),
+            Padding = new Padding(16, 4, 16, 16),
             ColumnCount = 1,
             RowCount = 2
         };
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 54));
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 46));
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
         shell.Controls.Add(content, 0, 1);
         content.Controls.Add(BuildWorkspace(), 0, 0);
         content.Controls.Add(BuildInspectorArea(), 0, 1);
@@ -169,9 +222,10 @@ public partial class Form1 : Form
         left.Controls.Add(product);
         layout.Controls.Add(left, 0, 0);
 
-        var centerTitle = NewLabel("AfterThemed by Drerachi", UiPalette.Text);
+        var centerTitle = NewLabel("THEME STUDIO", UiPalette.Text, true);
         centerTitle.Dock = DockStyle.Fill;
         centerTitle.TextAlign = ContentAlignment.MiddleCenter;
+        centerTitle.Font = UiFonts.Sans(11f, FontStyle.Bold);
         layout.Controls.Add(centerTitle, 1, 0);
 
         // The actions sit on a single rounded track, so the group reads as one navigation cluster
@@ -211,7 +265,7 @@ public partial class Form1 : Form
             BackColor = UiPalette.PanelRaised,
             Margin = Padding.Empty
         };
-        AddPillButton(actions, "INSTALL", GenerateAndInstall, PillBadge.Download, accent: true);
+        AddPillButton(actions, "INSTALL", () => GenerateAndInstall(), PillBadge.Download, accent: true);
         AddPillButton(actions, "GENERATE", GenerateVariant, PillBadge.Plus);
         AddPillButton(actions, "ABOUT", ShowAboutAfterThemed, PillBadge.Info);
         AddPillButton(actions, "REPORT BUG", ReportBug, PillBadge.Alert);
@@ -242,27 +296,31 @@ public partial class Form1 : Form
         {
             Dock = DockStyle.Fill,
             BackColor = UiPalette.Canvas,
-            Radius = 10,
-            Margin = new Padding(0, 0, 0, 8),
-            Padding = new Padding(12, 8, 12, 7)
+            Radius = 20,
+            ClipToRadius = false,
+            BorderColor = UiPalette.Border,
+            Margin = new Padding(0, 0, 0, 12),
+            Padding = new Padding(20, 12, 20, 10)
         };
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = UiPalette.Canvas };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         card.Controls.Add(layout);
 
-        var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = UiPalette.Canvas };
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = UiPalette.Canvas };
+        toolbar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 39));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
         var left = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, BackColor = UiPalette.Canvas, Margin = Padding.Empty };
-        AddButton(left, "↶", () => ApplyPreset(), false, 34, light: true);
+        AddButton(left, "RESET", () => ApplyPreset(), false, 70, light: true);
         AddButton(left, "IMPORT THEME…", ImportTheme, false, 124, light: true);
         toolbar.Controls.Add(left, 0, 0);
         var canvasTitle = NewLabel("LIVE THEME PREVIEW", UiPalette.CanvasText, true);
         canvasTitle.Dock = DockStyle.Fill;
         canvasTitle.TextAlign = ContentAlignment.MiddleCenter;
+        canvasTitle.Font = UiFonts.Sans(10f, FontStyle.Bold);
         toolbar.Controls.Add(canvasTitle, 1, 0);
         var right = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false, BackColor = UiPalette.Canvas, Margin = Padding.Empty };
         AddButton(right, "OPEN OUTPUT", () => OpenFolder(Variants), false, 110, light: true);
@@ -291,7 +349,7 @@ public partial class Form1 : Form
     private Control BuildInspectorArea()
     {
         var grid = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = UiPalette.Window };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 350));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         grid.Controls.Add(BuildFilePanel(), 0, 0);
         grid.Controls.Add(BuildControlsPanel(), 1, 0);
@@ -304,19 +362,20 @@ public partial class Form1 : Form
         {
             Dock = DockStyle.Fill,
             BackColor = UiPalette.Panel,
-            Radius = 9,
+            Radius = SurfaceRadius,
+            ClipToRadius = false,
             BorderColor = UiPalette.Border,
             Speckle = true,
-            Margin = new Padding(0, 0, 8, 0),
-            Padding = new Padding(13, 10, 13, 10)
+            Margin = new Padding(0, 0, 12, 0),
+            Padding = new Padding(18, 12, 18, 12)
         };
         var layout = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7, BackColor = UiPalette.Panel };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         card.Controls.Add(layout);
         layout.Controls.Add(SectionLabel("PROJECT"), 0, 0);
@@ -349,14 +408,15 @@ public partial class Form1 : Form
         {
             Dock = DockStyle.Fill,
             BackColor = UiPalette.Panel,
-            Radius = 9,
+            Radius = SurfaceRadius,
+            ClipToRadius = false,
             BorderColor = UiPalette.Border,
             Speckle = true,
             Margin = Padding.Empty,
-            Padding = new Padding(10, 7, 10, 9)
+            Padding = new Padding(18, 12, 18, 12)
         };
         var shell = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = UiPalette.Panel };
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         card.Controls.Add(shell);
 
@@ -368,6 +428,7 @@ public partial class Form1 : Form
             BackColor = UiPalette.AccentContainer,
             ForeColor = UiPalette.OnAccentContainer,
             HoverColor = ColorFx.Lighten(UiPalette.AccentContainer, .12f),
+            Flat = false,
             Margin = new Padding(0, 0, 6, 0)
         };
         var textButton = new MacButton
@@ -377,6 +438,7 @@ public partial class Form1 : Form
             BackColor = UiPalette.Panel,
             ForeColor = UiPalette.Muted,
             HoverColor = UiPalette.PanelRaised,
+            Flat = true,
             Margin = new Padding(0, 0, 6, 0)
         };
         var panelsButton = new MacButton
@@ -386,6 +448,7 @@ public partial class Form1 : Form
             BackColor = UiPalette.Panel,
             ForeColor = UiPalette.Muted,
             HoverColor = UiPalette.PanelRaised,
+            Flat = true,
             Margin = new Padding(0, 0, 6, 0)
         };
         nav.Controls.Add(colorsButton);
@@ -412,6 +475,7 @@ public partial class Form1 : Form
                 button.BackColor = selected ? UiPalette.AccentContainer : UiPalette.Panel;
                 button.ForeColor = selected ? UiPalette.OnAccentContainer : UiPalette.Muted;
                 button.HoverColor = selected ? ColorFx.Lighten(UiPalette.AccentContainer, .12f) : UiPalette.PanelRaised;
+                button.Flat = !selected;
                 button.Invalidate();
             }
         }
@@ -422,7 +486,7 @@ public partial class Form1 : Form
 
         var colorsLayout = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = UiPalette.Panel };
         colorsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        colorsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        colorsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         var swatches = new SpeckledFlow { Dock = DockStyle.Fill, AutoScroll = true, BackColor = UiPalette.Panel, Padding = new Padding(0), WrapContents = true };
         AddColorCard(swatches, "App Background", "#6F0623");
         AddColorCard(swatches, "Panel Color", "#6F0623");
@@ -433,9 +497,11 @@ public partial class Form1 : Form
         AddColorCard(swatches, "Danger Accent", "#FF003C");
         colorsLayout.Controls.Add(swatches, 0, 0);
 
-        var options = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 1, BackColor = UiPalette.Panel, Padding = new Padding(0, 6, 0, 0) };
+        var options = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 1, BackColor = UiPalette.Panel, Padding = new Padding(0, 6, 0, 0) };
         options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var sliderArea = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = UiPalette.Panel };
+        options.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var sliderArea = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = UiPalette.Panel };
+        sliderArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         sliderArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
         sliderArea.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         sliderArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
@@ -496,7 +562,8 @@ public partial class Form1 : Form
             BackColor = UiPalette.Input,
             BorderColor = UiPalette.Border,
             BorderWidth = 1,
-            Radius = 10,
+            Radius = SurfaceRadius,
+            ClipToRadius = false,
             Speckle = true,
             Padding = new Padding(24, 20, 20, 18),
             Margin = Padding.Empty
@@ -737,7 +804,8 @@ public partial class Form1 : Form
             Log("No After Effects installation was detected · Select the installed dvaui.dll.");
         }
         LoadInstalledFonts();
-        preset.SelectedIndex = 5;
+        if (suppressStartupPrompts) preset.SelectedIndex = 5;
+        else RestoreSession();
         RefreshPanelDiscovery();
         Log($"Ready · Originals, variants, and backups are stored in {DataRoot}");
     }
@@ -752,7 +820,7 @@ public partial class Form1 : Form
         var remembered = File.Exists(savedTarget) ||
             OriginalDllStore.ExistingFor(savedTarget, Originals, requireAdobeSignature: false) is not null
             ? savedTarget : string.Empty;
-        if (suppressStartupPrompts)
+        if (suppressStartupPrompts || useWebUi)
             return remembered.Length > 0 ? remembered : installations.FirstOrDefault()?.DllPath ?? string.Empty;
 
         if (remembered.Length > 0 && installations.Count <= 1) return remembered;
@@ -778,6 +846,11 @@ public partial class Form1 : Form
     {
         var chosen = ShowInstallPicker(target.Text.Trim());
         if (chosen is null) return;
+        ApplySelectedInstallation(chosen);
+    }
+
+    private void ApplySelectedInstallation(string chosen)
+    {
         target.Text = chosen;
         Try(() =>
         {
@@ -810,10 +883,17 @@ public partial class Form1 : Form
 
     private void ImportTheme()
     {
-        using var dialog = new OpenFileDialog { Filter = "Theme files and DVAUI DLLs|*.theme;*.css;*.json;*.xml;*.dll|DVAUI theme DLL (*.dll)|*.dll|Windows themes (*.theme)|*.theme|CSS (*.css)|*.css|JSON (*.json)|*.json|XML (*.xml)|*.xml" };
+        using var dialog = new OpenFileDialog { Filter = "Theme files and DVAUI DLLs|*.afterthemed;*.theme;*.css;*.json;*.xml;*.dll|AfterThemed theme (*.afterthemed)|*.afterthemed|DVAUI theme DLL (*.dll)|*.dll|Windows themes (*.theme)|*.theme|CSS (*.css)|*.css|JSON (*.json)|*.json|XML (*.xml)|*.xml" };
         if (dialog.ShowDialog() != DialogResult.OK) return;
         Try(() =>
         {
+            if (Path.GetExtension(dialog.FileName).Equals(ThemeDocuments.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyThemeDocument(ThemeDocuments.Parse(File.ReadAllText(dialog.FileName)),
+                    $"{Path.GetFileName(dialog.FileName).ToUpperInvariant()}  ·  AFTERTHEMED THEME");
+                Log($"Imported {dialog.FileName}");
+                return;
+            }
             var imported = ThemeImporter.Load(dialog.FileName);
             preset.SelectedIndex = BuiltInPresets.Length;
             themeName.Text = imported.Name;
@@ -881,22 +961,68 @@ public partial class Form1 : Form
 
     private void GenerateVariant() => Try(() => _ = GenerateTo($"dvaui.{SafeName()}.dll"));
 
-    private void GenerateAndInstall()
+    /// <summary>
+    /// Installs the current theme into <paramref name="onlyTargets"/>, or into the selected installation
+    /// (plus every other detected version when "install to all" is on). Each target is generated from its
+    /// own preserved original and recorded in the theme history as soon as it is verified.
+    /// </summary>
+    private async void GenerateAndInstall(IReadOnlyList<string>? onlyTargets = null)
     {
+        if (WebInstallBusy) return;
+        var primary = target.Text.Trim();
+        var targets = onlyTargets?.ToList() ?? [primary];
+        if (onlyTargets is null && installAll)
+            targets.AddRange(AfterEffectsCatalog.Discover().Select(item => item.DllPath)
+                .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(primary), StringComparison.OrdinalIgnoreCase)));
+        SetWebInstallStatus("preparing", "Preparing theme files…");
+        await Task.Delay(50);
+        if (IsDisposed || Disposing) return;
+        var document = CurrentThemeDocument();
+        var historyId = DateTime.UtcNow.Ticks.ToString();
         Try(() =>
         {
             if (Process.GetProcessesByName("AfterFX").Length > 0) throw new InvalidOperationException("Close After Effects before installing.");
-            var output = GenerateTo("dvaui.install-ready.dll");
-            if (themePanels.Checked)
+            try
             {
-                PanelThemeManager.SaveConfiguration(PanelThemeFile, ReadSettings(), themeName.Text, ReadFontFamily());
-                InstallElevated(output.NativePath, "Installation", PanelInstallAction.Apply, PanelThemeFile,
-                    output.Companion);
+                for (var i = 0; i < targets.Count; i++)
+                {
+                    target.Text = targets[i];
+                    var step = targets.Count > 1
+                        ? $" into {AfterEffectsCatalog.Describe(targets[i])?.DisplayName ?? "After Effects"} ({i + 1} of {targets.Count})"
+                        : string.Empty;
+                    var output = GenerateTo("dvaui.install-ready.dll");
+                    SetWebInstallStatus("installing", $"Installing theme{step}. Complete the Windows permission prompt if shown.");
+                    // ponytail: CEP panels are applied with the first target only; they live outside the AE folders.
+                    if (i == 0 && themePanels.Checked)
+                    {
+                        PanelThemeManager.SaveConfiguration(PanelThemeFile, ReadSettings(), themeName.Text, ReadFontFamily());
+                        InstallElevated(output.NativePath, "Installation", PanelInstallAction.Apply, PanelThemeFile, output.Companion);
+                    }
+                    else InstallElevated(output.NativePath, "Installation", companion: output.Companion);
+                    ThemeHistory.RecordInstall(HistoryFile, historyId, document, targets[i], OriginalDllStore.Sha256(targets[i]));
+                    replacedThemes.RemoveAll(item => string.Equals(item.Target, targets[i], StringComparison.OrdinalIgnoreCase));
+                }
             }
-            else InstallElevated(output.NativePath, "Installation", companion: output.Companion);
-        }, reportOnFailure: true);
+            finally
+            {
+                target.Text = primary;
+                if (primary.Length > 0)
+                {
+                    source.Text = OriginalDllStore.ExistingFor(primary, Originals, requireAdobeSignature: false) ?? source.Text;
+                    SaveLastTarget(primary);
+                }
+            }
+            SetWebInstallStatus("installed", targets.Count > 1
+                ? $"Theme installed and verified in {targets.Count} After Effects versions."
+                : "Theme installed and verified. Open After Effects to see your theme.");
+        }, reportOnFailure: true, onFailure: ex =>
+        {
+            var cancelled = ex is OperationCanceledException ||
+                ex is System.ComponentModel.Win32Exception { NativeErrorCode: 1223 };
+            SetWebInstallStatus(cancelled ? "cancelled" : "failed",
+                cancelled ? "Installation cancelled. You can try again." : ex.Message);
+        });
     }
-
     private void InstallElevated(string input, string operation, PanelInstallAction panelAction = PanelInstallAction.None,
         string? panelConfiguration = null, LegacyAeThemeCompanion? companion = null)
     {
@@ -1027,6 +1153,8 @@ public partial class Form1 : Form
             InstallElevated(restoreDll, "Adobe original restore",
                 File.Exists(panelManifest) ? PanelInstallAction.Restore : PanelInstallAction.None,
                 companion: companion);
+            ThemeHistory.Forget(HistoryFile, targetPath);
+            replacedThemes.RemoveAll(item => string.Equals(item.Target, targetPath, StringComparison.OrdinalIgnoreCase));
             Log("After Effects and all safely modified CEP panel files have been returned to their preserved originals.");
         }, reportOnFailure: true);
     }
@@ -1042,12 +1170,27 @@ public partial class Form1 : Form
             e.Graphics.Clear(UiPalette.Canvas);
             if (r.Width < 200 || r.Height < 100) return;
 
-            var window = new Rectangle(58, 8, Math.Max(200, r.Width - 116), Math.Max(100, r.Height - 18));
-            using (var shadow = new SolidBrush(Color.FromArgb(24, 0, 0, 0)))
-                e.Graphics.FillRoundedRectangle(shadow, new Rectangle(window.X + 4, window.Y + 6, window.Width, window.Height), 9);
+            var window = new Rectangle(32, 10, Math.Max(200, r.Width - 64), Math.Max(100, r.Height - 24));
+            // The sample is still painted with the user's exact theme colours. Only its
+            // enclosure takes on the molded display treatment of the editor shell.
+            var bezel = Rectangle.Inflate(window, 5, 5);
+            using (var shadow = new SolidBrush(Color.FromArgb(90, 0, 0, 0)))
+                e.Graphics.FillRoundedRectangle(shadow,
+                    new Rectangle(bezel.X + 3, bezel.Y + 5, bezel.Width, bezel.Height), 16);
+            using (var bezelPath = RoundedPanel.RoundRect(bezel, 15))
+            using (var bezelFill = new LinearGradientBrush(bezel,
+                       ColorFx.Lighten(UiPalette.CanvasRaised, .22f),
+                       ColorFx.Darken(UiPalette.CanvasRaised, .12f), LinearGradientMode.Vertical))
+            using (var bezelEdge = new Pen(UiPalette.Border, 1f))
+            {
+                e.Graphics.FillPath(bezelFill, bezelPath);
+                e.Graphics.DrawPath(bezelEdge, bezelPath);
+            }
             using var windowPath = RoundedPanel.RoundRect(window, 8);
             using var background = new SolidBrush(s.Background);
             e.Graphics.FillPath(background, windowPath);
+            using (var innerEdge = new Pen(Color.FromArgb(118, Color.Black), 1f))
+                e.Graphics.DrawPath(innerEdge, windowPath);
 
             var top = new Rectangle(window.X, window.Y, window.Width, 25);
             using var topBrush = new SolidBrush(s.Background);
@@ -1071,11 +1214,15 @@ public partial class Form1 : Form
                 e.Graphics.FillRectangle(mainBrush, main);
 
             e.Graphics.DrawString("EFFECTS & PRESETS", smallFont, textBrush, sidebar.X + 10, sidebar.Y + 9);
-            e.Graphics.DrawString("Animation Presets\n3D Channel\nBlur & Sharpen\nColor Correction\nDistort\nExpression Controls", tinyFont, textBrush, sidebar.X + 12, sidebar.Y + 30);
+            var sampleEffects = sidebar.Height < 120
+                ? "Animation Presets\n3D Channel\nBlur & Sharpen\nColor Correction"
+                : "Animation Presets\n3D Channel\nBlur & Sharpen\nColor Correction\nDistort\nExpression Controls";
+            e.Graphics.DrawString(sampleEffects, tinyFont, textBrush, sidebar.X + 12, sidebar.Y + 30);
             using var linePen = new Pen(Color.FromArgb(80, s.Text), 1);
             e.Graphics.DrawLine(linePen, sidebar.X + 10, sidebar.Bottom - 24, sidebar.Right - 10, sidebar.Bottom - 24);
 
-            var comp = new Rectangle(main.X + 10, main.Y + 10, main.Width - 20, Math.Max(34, (int)(main.Height * .58)));
+            var compHeight = Math.Max(32, Math.Min((int)(main.Height * .56), main.Height - 59));
+            var comp = new Rectangle(main.X + 10, main.Y + 10, main.Width - 20, compHeight);
             using var compBrush = new SolidBrush(s.Background);
             e.Graphics.FillRectangle(compBrush, comp);
             using var primaryBrush = new SolidBrush(s.Primary);
@@ -1120,33 +1267,35 @@ public partial class Form1 : Form
     {
         var card = new RoundedPanel
         {
-            Size = new Size(154, 62),
+            Size = new Size(170, 60),
             BackColor = UiPalette.PanelRaised,
             BorderColor = UiPalette.Border,
-            Radius = 7,
-            Speckle = true,
-            Margin = new Padding(0, 0, 7, 7),
-            Padding = new Padding(9, 6, 8, 6),
-            Cursor = Cursors.Hand
+            Radius = 17,
+            ClipToRadius = false,
+            Margin = new Padding(0, 0, 6, 6),
+            Padding = new Padding(10, 6, 8, 6),
+            Cursor = Cursors.Hand,
+            AccessibleName = $"Choose {name} color"
         };
         var layout = new SpeckledTable { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = UiPalette.PanelRaised, Margin = Padding.Empty };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 19));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 32));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var label = NewLabel(name.ToUpperInvariant(), UiPalette.Muted, true);
         label.Dock = DockStyle.Fill;
+        label.Font = UiFonts.Sans(8f, FontStyle.Bold);
         layout.SetColumnSpan(label, 2);
         layout.Controls.Add(label, 0, 0);
         var box = NewTextBox();
         box.Text = value;
-        box.Font = UiFonts.Mono(8.5f);
-        box.BorderStyle = BorderStyle.None;
-        box.BackColor = UiPalette.PanelRaised;
-        box.Margin = new Padding(0, 4, 0, 0);
+        box.Font = UiFonts.Mono(9f);
+        box.AccessibleName = $"{name} hex color";
+        box.BackColor = UiPalette.Input;
+        box.Margin = new Padding(0, 2, 0, 2);
         box.TextChanged += (_, _) => { UpdateColorChip(card, name); UpdatePreview(); };
         layout.Controls.Add(box, 0, 1);
-        var chip = new ColorChip { Name = "chip", Dock = DockStyle.Fill, Margin = new Padding(5, 3, 1, 1) };
+        var chip = new ColorChip { Name = "chip", Dock = DockStyle.Fill, Margin = new Padding(5, 3, 1, 1), AccessibleName = $"Choose {name} color" };
         chip.Click += (_, _) => PickColor(name, chip);
         layout.Controls.Add(chip, 1, 1);
         card.Controls.Add(layout);
@@ -1188,7 +1337,7 @@ public partial class Form1 : Form
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 54));
         box.Margin = new Padding(0, 0, 5, 2);
         row.Controls.Add(box, 0, 0);
-        var button = new MacButton { Text = "•••", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 2) };
+        var button = new MacButton { Text = "•••", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 2), AccessibleName = label };
         button.Click += (_, _) => browse();
         row.Controls.Add(button, 1, 0);
         field.Controls.Add(row, 0, 1);
@@ -1251,8 +1400,8 @@ public partial class Form1 : Form
         // small uppercase labels look pixelated next to the rest of the interface.
         UseCompatibleTextRendering = true,
         // Inter stays crisp at compact desktop-control sizes; the uppercase
-        // micro-labels stay at 7.5pt to keep fitting inside the colour cards.
-        Font = UiFonts.Sans(bold ? 7.5f : 8.5f, bold ? FontStyle.Bold : FontStyle.Regular)
+        // micro-labels stay at 8pt to keep fitting inside the colour cards.
+        Font = UiFonts.Sans(bold ? 8f : 9f, bold ? FontStyle.Bold : FontStyle.Regular)
     };
 
     private static void AddButton(FlowLayoutPanel panel, string text, Action action, bool accent = false, int width = 100, bool light = false)
@@ -1421,7 +1570,11 @@ public partial class Form1 : Form
         if (report.Warnings.Count > 8) Log($"Panel warning · {report.Warnings.Count - 8} additional warnings are recorded in {PanelReportFile}");
     }
 
-    private void UpdatePreview() => preview.Invalidate();
+    private void UpdatePreview()
+    {
+        preview.Invalidate();
+        PublishWebState();
+    }
     private Color ReadColor(string name) { try { return ColorTranslator.FromHtml(colorBoxes[name].Text.Trim()); } catch { throw new FormatException($"{name} must be a hex color like #FCEE0A."); } }
     private static string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
     private static string Quote(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
@@ -1483,7 +1636,7 @@ public partial class Form1 : Form
         };
         picker.ShowNear(this, anchor);
     }
-    private void Try(Action action, bool reportOnFailure = false)
+    private void Try(Action action, bool reportOnFailure = false, Action<Exception>? onFailure = null)
     {
         // All GUI instances share the same variants and panel configuration. Serialize complete
         // operations, including the elevated helper, so one instance cannot replace another's input.
@@ -1498,12 +1651,14 @@ public partial class Form1 : Form
             if (!acquired) throw new InvalidOperationException("Another AfterThemed window is applying changes. Wait for it to finish.");
             action();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            onFailure?.Invoke(ex);
             Log("Operation cancelled.");
         }
         catch (Exception ex)
         {
+            onFailure?.Invoke(ex);
             AppDiagnostics.Write(ex.ToString());
             Log("ERROR · " + ex.Message);
             MessageBox.Show(this, ex.Message, "AfterThemed by Drerachi", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -1516,6 +1671,7 @@ public partial class Form1 : Form
     {
         AppDiagnostics.Write(text);
         log.AppendText($"[{DateTime.Now:HH:mm:ss}]  {text}\r\n");
+        PublishWebState();
     }
 
     private void DragWindow(object? sender, MouseEventArgs e)

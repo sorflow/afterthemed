@@ -7,29 +7,28 @@ namespace DvauiThemeEditor;
 
 internal static class UiPalette
 {
-    // Material 3 Expressive-inspired dark scheme generated from a #1DACF3
-    // electric-blue seed. Large areas use calm, related blue-slate tones while
-    // the high-chroma seed is reserved for actions, focus, and selected state.
-    internal static readonly Color Window = Color.FromArgb(8, 24, 32);              // surface dim
-    internal static readonly Color Panel = Color.FromArgb(16, 38, 48);              // surface container
-    internal static readonly Color PanelRaised = Color.FromArgb(25, 54, 65);        // surface container high
-    internal static readonly Color PanelHover = Color.FromArgb(35, 70, 82);         // surface container highest
-    internal static readonly Color Input = Color.FromArgb(13, 32, 41);              // surface container low
-    internal static readonly Color Border = Color.FromArgb(69, 101, 115);           // outline variant
-    internal static readonly Color Text = Color.FromArgb(233, 246, 252);            // on surface
-    internal static readonly Color Muted = Color.FromArgb(172, 198, 210);           // on surface variant
-    internal static readonly Color Canvas = Color.FromArgb(241, 247, 250);          // light surface
-    internal static readonly Color CanvasRaised = Color.FromArgb(227, 239, 244);    // light surface container
-    internal static readonly Color CanvasText = Color.FromArgb(23, 42, 51);         // light on surface
-    internal static readonly Color CanvasMuted = Color.FromArgb(83, 106, 117);      // light on surface variant
-    internal static readonly Color Accent = Color.FromArgb(29, 172, 243);           // #1DACF3 primary
-    internal static readonly Color AccentHover = Color.FromArgb(92, 198, 250);      // primary hover
-    internal static readonly Color OnAccent = Color.FromArgb(0, 44, 58);            // on primary
-    internal static readonly Color AccentContainer = Color.FromArgb(0, 75, 101);    // primary container
-    internal static readonly Color OnAccentContainer = Color.FromArgb(190, 234, 255);// on primary container
-    internal static readonly Color LightAction = Color.FromArgb(199, 234, 252);     // light primary container
-    internal static readonly Color LightActionHover = Color.FromArgb(167, 220, 246);
-    internal static readonly Color LightActionText = Color.FromArgb(0, 53, 72);
+    // Quiet charcoal layers keep the theme itself as the most colorful surface.
+    // Blue marks actions and focus; the canvas is dark even for light AE presets.
+    internal static readonly Color Window = Color.FromArgb(16, 17, 19);
+    internal static readonly Color Panel = Color.FromArgb(27, 29, 32);
+    internal static readonly Color PanelRaised = Color.FromArgb(39, 42, 46);
+    internal static readonly Color PanelHover = Color.FromArgb(51, 56, 62);
+    internal static readonly Color Input = Color.FromArgb(22, 24, 27);
+    internal static readonly Color Border = Color.FromArgb(68, 73, 80);
+    internal static readonly Color Text = Color.FromArgb(247, 248, 249);
+    internal static readonly Color Muted = Color.FromArgb(180, 187, 194);
+    internal static readonly Color Canvas = Color.FromArgb(27, 29, 32);
+    internal static readonly Color CanvasRaised = Color.FromArgb(46, 49, 54);
+    internal static readonly Color CanvasText = Color.FromArgb(247, 248, 249);
+    internal static readonly Color CanvasMuted = Color.FromArgb(180, 187, 194);
+    internal static readonly Color Accent = Color.FromArgb(22, 169, 230);
+    internal static readonly Color AccentHover = Color.FromArgb(76, 194, 242);
+    internal static readonly Color OnAccent = Color.FromArgb(8, 27, 37);
+    internal static readonly Color AccentContainer = Color.FromArgb(22, 65, 86);
+    internal static readonly Color OnAccentContainer = Color.FromArgb(216, 241, 252);
+    internal static readonly Color LightAction = Color.FromArgb(39, 42, 46);
+    internal static readonly Color LightActionHover = Color.FromArgb(51, 56, 62);
+    internal static readonly Color LightActionText = Color.FromArgb(247, 248, 249);
     internal static readonly Color Error = Color.FromArgb(255, 180, 171);
     internal static readonly Color ErrorContainer = Color.FromArgb(73, 29, 30);
 }
@@ -64,7 +63,7 @@ internal static class UiFonts
 internal static class SpeckleField
 {
     private const int TileSize = 256;
-    private const int SpecksPerTile = 105;
+    private const int SpecksPerTile = 24;
 
     private static readonly Dictionary<int, TextureBrush> Tiles = new();
 
@@ -132,20 +131,20 @@ internal static class SpeckleField
         var top = new Rectangle(owner.X, owner.Y, owner.Width, depth);
         using (var light = new LinearGradientBrush(
             Rectangle.Inflate(top, 1, 1),
-            Color.FromArgb(26, 255, 255, 255), Color.FromArgb(0, 255, 255, 255),
+            Color.FromArgb(18, 255, 255, 255), Color.FromArgb(0, 255, 255, 255),
             LinearGradientMode.Vertical))
             g.FillRectangle(light, top);
 
         var bottom = new Rectangle(owner.X, owner.Bottom - depth, owner.Width, depth);
         using (var shade = new LinearGradientBrush(
             Rectangle.Inflate(bottom, 1, 1),
-            Color.FromArgb(0, 0, 0, 0), Color.FromArgb(48, 0, 0, 0),
+            Color.FromArgb(0, 0, 0, 0), Color.FromArgb(30, 0, 0, 0),
             LinearGradientMode.Vertical))
             g.FillRectangle(shade, bottom);
 
         // Fresnel rim: the outline only catches light across the upper arc.
         g.SetClip(new Rectangle(owner.X, owner.Y, owner.Width, owner.Height / 2), CombineMode.Intersect);
-        using (var rim = new Pen(Color.FromArgb(34, 255, 255, 255), 1f))
+        using (var rim = new Pen(Color.FromArgb(22, 255, 255, 255), 1f))
             g.DrawPath(rim, ownerPath);
 
         g.Restore(state);
@@ -362,6 +361,18 @@ internal sealed class RoundedPanel : Panel
             using var pen = new Pen(BorderColor, BorderWidth);
             e.Graphics.DrawPath(pen, borderPath);
         }
+        if (Speckle && ClientSize.Width > 6 && ClientSize.Height > 6)
+        {
+            // A second, recessed edge gives the dark modules a molded shell. The
+            // palette stays on the original surface; only the light direction changes.
+            using var inner = RoundRect(RectangleF.Inflate(ClientRectangle, -2.5f, -2.5f),
+                Math.Max(0f, Radius - 2.5f));
+            using var rim = new LinearGradientBrush(ClientRectangle,
+                Color.FromArgb(66, Color.White), Color.FromArgb(78, Color.Black),
+                LinearGradientMode.Vertical);
+            using var rimPen = new Pen(rim, 1f);
+            e.Graphics.DrawPath(rimPen, inner);
+        }
         base.OnPaint(e);
     }
 
@@ -447,43 +458,43 @@ internal sealed class AfterThemedMark : Control
 
         var side = Math.Max(48f, Math.Min(ClientSize.Width, ClientSize.Height) - 8f);
         var bounds = new RectangleF((ClientSize.Width - side) / 2f, (ClientSize.Height - side) / 2f, side, side);
-        using var plate = RoundedRectangle(bounds, side * .17f);
-        // These are the exact view-box geometry and paint values from the supplied
-        // Assets/AfterThemed-Mark.svg, rendered through GDI+ so it stays crisp in WinForms.
-        using var plateBrush = new LinearGradientBrush(bounds,
-            Color.FromArgb(25, 54, 65), Color.FromArgb(8, 24, 32), 135f);
-        graphics.FillPath(plateBrush, plate);
-        using var border = new Pen(Color.FromArgb(69, 101, 115), Math.Max(1f, side / 120f));
-        graphics.DrawPath(border, plate);
+        // The exact geometry of Assets/AfterThemed-Mark.svg (512-unit view box), drawn with GDI+ so it stays crisp.
+        float U(float value) => value / 512f * side;
+        PointF P(float x, float y) => new(bounds.X + U(x), bounds.Y + U(y));
+        var blue = Color.FromArgb(0x10, 0x0B, 0xEA);
+        var ice = Color.FromArgb(0xED, 0xF5, 0xFF);
 
-        PointF Point(float x, float y) => new(bounds.X + x / 160f * bounds.Width, bounds.Y + y / 160f * bounds.Height);
-        PointF[] Polygon(params float[] values)
-        {
-            var result = new PointF[values.Length / 2];
-            for (var index = 0; index < result.Length; index++)
-                result[index] = Point(values[index * 2], values[index * 2 + 1]);
-            return result;
-        }
+        using (var tile = RoundedRectangle(bounds, U(116)))
+        using (var tileBrush = new SolidBrush(blue))
+            graphics.FillPath(tileBrush, tile);
 
-        using var glow = new LinearGradientBrush(bounds,
-            Color.FromArgb(92, 198, 250), Color.FromArgb(176, 125, 255), 0f);
-        glow.InterpolationColors = new ColorBlend
-        {
-            Colors = [Color.FromArgb(92, 198, 250), Color.FromArgb(29, 172, 243), Color.FromArgb(176, 125, 255)],
-            Positions = [0f, .52f, 1f]
-        };
-        graphics.FillPolygon(glow, Polygon(25, 125, 67, 35, 84, 35, 52, 125));
-        graphics.FillPolygon(glow, Polygon(77, 35, 94, 35, 137, 125, 109, 125));
-        graphics.FillPolygon(glow, Polygon(51, 84, 109, 84, 120, 106, 41, 106));
+        using var iceBrush = new SolidBrush(ice);
+        foreach (var (x, y) in LogoPixels)
+            using (var pixel = RoundedRectangle(new RectangleF(P(x, y), new SizeF(U(23), U(23))), U(3)))
+                graphics.FillPath(iceBrush, pixel);
 
-        var dotSize = side * .085f;
-        var dot = new RectangleF(bounds.Right - side * .21f, bounds.Top + side * .14f, dotSize, dotSize);
-        using var dotBrush = new SolidBrush(Color.FromArgb(29, 172, 243));
-        graphics.FillEllipse(dotBrush, dot);
+        using (var ring = new Pen(ice, U(18)))
+            graphics.DrawEllipse(ring, bounds.X + U(244 - 150), bounds.Y + U(268 - 150), U(300), U(300));
 
-        using var sheen = new Pen(Color.FromArgb(95, Color.White), Math.Max(1f, side / 150f));
-        graphics.DrawLine(sheen, Point(32, 120), Point(72, 38));
+        // Four-point sparkle (star path scaled 6x at 266.1, 77.9) with a blue knockout that breaks the ring.
+        PointF S(float x, float y) => P(266.1f + x * 6f, 77.9f + y * 6f);
+        using var star = new GraphicsPath();
+        star.AddBezier(S(14, 1.5f), S(14.9f, 10.8f), S(17.2f, 13.1f), S(26.5f, 14));
+        star.AddBezier(S(26.5f, 14), S(17.2f, 14.9f), S(14.9f, 17.2f), S(14, 26.5f));
+        star.AddBezier(S(14, 26.5f), S(13.1f, 17.2f), S(10.8f, 14.9f), S(1.5f, 14));
+        star.AddBezier(S(1.5f, 14), S(10.8f, 13.1f), S(13.1f, 10.8f), S(14, 1.5f));
+        star.CloseFigure();
+        using (var knockout = new Pen(blue, U(26)) { LineJoin = LineJoin.Round })
+            graphics.DrawPath(knockout, star);
+        graphics.FillPath(iceBrush, star);
     }
+
+    private static readonly (float X, float Y)[] LogoPixels =
+    [
+        (158, 206), (218, 236), (308, 236), (128, 266), (188, 266), (218, 266), (278, 266), (338, 266),
+        (128, 296), (158, 296), (218, 296), (248, 296), (278, 296), (308, 296), (338, 296), (158, 326), (188, 326),
+        (218, 326), (248, 326), (278, 326), (308, 326), (188, 356), (218, 356), (248, 356), (278, 356)
+    ];
 
     private static GraphicsPath RoundedRectangle(RectangleF rectangle, float radius)
     {
@@ -547,6 +558,16 @@ internal class MacButton : Button
     protected override void OnMouseLeave(EventArgs e) { hovering = false; Invalidate(); base.OnMouseLeave(e); }
     protected override void OnMouseDown(MouseEventArgs e) { pressed = true; Invalidate(); base.OnMouseDown(e); }
     protected override void OnMouseUp(MouseEventArgs e) { pressed = false; Invalidate(); base.OnMouseUp(e); }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyCode is Keys.Space or Keys.Enter) { pressed = true; Invalidate(); }
+        base.OnKeyDown(e);
+    }
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (e.KeyCode is Keys.Space or Keys.Enter) { pressed = false; Invalidate(); }
+        base.OnKeyUp(e);
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -560,8 +581,7 @@ internal class MacButton : Button
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
         // The body sits one pixel proud of the bottom edge so the soft elevation
-        // shadow has room. Interaction uses Material state layers rather than a
-        // high-gloss bevel, keeping the brand colour stable and recognizable.
+        // shadow has room. The face catches light above and settles into shade below.
         var body = new Rectangle(0, 0, Width - 1, Height - 2);
         if (body.Width <= 0 || body.Height <= 0) return;
 
@@ -574,14 +594,39 @@ internal class MacButton : Button
 
         using var path = RoundedPanel.RoundRect(body, Radius);
         var face = hovering ? HoverColor : BackColor;
-        if (pressed) face = ColorFx.Blend(face, ForeColor, 0.12f);
-        using (var fill = new SolidBrush(face))
+        if (pressed) face = ColorFx.Darken(face, .08f);
+        if (Flat && !hovering && !pressed)
+        {
+            using var fill = new SolidBrush(face);
             g.FillPath(fill, path);
+        }
+        else
+        {
+            var top = pressed ? ColorFx.Darken(face, .18f) : ColorFx.Lighten(face, hovering ? .24f : .16f);
+            var bottom = pressed ? ColorFx.Lighten(face, .06f) : ColorFx.Darken(face, .16f);
+            using var fill = new LinearGradientBrush(body, top, bottom, LinearGradientMode.Vertical);
+            g.FillPath(fill, path);
+        }
 
         if (!Flat)
         {
-            using var pen = new Pen(Color.FromArgb(38, ForeColor), 1f);
+            using var pen = new Pen(Color.FromArgb(74, ForeColor), 1f);
             g.DrawPath(pen, path);
+            if (!pressed)
+            {
+                var glint = new RectangleF(body.X + 2, body.Y + 2, body.Width - 4, body.Height - 4);
+                using var inner = RoundedPanel.RoundRect(glint, Math.Max(0, Radius - 2));
+                var state = g.Save();
+                g.SetClip(new Rectangle(body.X, body.Y, body.Width, body.Height / 2));
+                using var gleam = new Pen(Color.FromArgb(58, Color.White), 1f);
+                g.DrawPath(gleam, inner);
+                g.Restore(state);
+            }
+        }
+        if (Focused && ShowFocusCues)
+        {
+            using var focus = new Pen(UiPalette.Accent, 1f) { DashStyle = DashStyle.Dot };
+            g.DrawPath(focus, path);
         }
 
         var label = body;
@@ -883,12 +928,29 @@ internal sealed class MacSlider : Control
     {
         Height = 28;
         Cursor = Cursors.Hand;
+        TabStop = true;
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 
-    protected override void OnMouseDown(MouseEventArgs e) { dragging = true; SetFromMouse(e.X); base.OnMouseDown(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { Focus(); dragging = true; SetFromMouse(e.X); base.OnMouseDown(e); }
     protected override void OnMouseMove(MouseEventArgs e) { if (dragging) SetFromMouse(e.X); base.OnMouseMove(e); }
     protected override void OnMouseUp(MouseEventArgs e) { dragging = false; base.OnMouseUp(e); }
+    protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+    protected override void OnLostFocus(EventArgs e) { dragging = false; Invalidate(); base.OnLostFocus(e); }
+    protected override bool IsInputKey(Keys keyData) =>
+        keyData is Keys.Left or Keys.Right or Keys.Home or Keys.End || base.IsInputKey(keyData);
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        switch (e.KeyCode)
+        {
+            case Keys.Left: Value--; break;
+            case Keys.Right: Value++; break;
+            case Keys.Home: Value = Minimum; break;
+            case Keys.End: Value = Maximum; break;
+            default: base.OnKeyDown(e); return;
+        }
+        e.Handled = true;
+    }
     private void SetFromMouse(int x) => Value = Minimum + (int)Math.Round(Math.Clamp((x - 8f) / Math.Max(1, Width - 16), 0, 1) * (Maximum - Minimum));
 
     protected override void OnPaint(PaintEventArgs e)
@@ -898,12 +960,28 @@ internal sealed class MacSlider : Control
         var y = Height / 2;
         var usable = Math.Max(1, Width - 16);
         var px = 8 + (int)(usable * ((Value - Minimum) / (float)Math.Max(1, Maximum - Minimum)));
-        using var rest = new Pen(UiPalette.Border, 4) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var grooveShadow = new Pen(Color.FromArgb(125, Color.Black), 8) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var grooveLip = new Pen(Color.FromArgb(72, Color.White), 1) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var groove = new Pen(UiPalette.Input, 5) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         using var active = new Pen(UiPalette.Accent, 4) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        using var knob = new SolidBrush(UiPalette.OnAccentContainer);
-        e.Graphics.DrawLine(rest, 8, y, Width - 8, y);
+        e.Graphics.DrawLine(grooveShadow, 8, y, Width - 8, y);
+        e.Graphics.DrawLine(groove, 8, y, Width - 8, y);
+        e.Graphics.DrawLine(grooveLip, 8, y + 3, Width - 8, y + 3);
         e.Graphics.DrawLine(active, 8, y, px, y);
-        e.Graphics.FillEllipse(knob, px - 7, y - 7, 14, 14);
+        var thumb = new Rectangle(px - 8, y - 8, 16, 16);
+        using var thumbShadow = new SolidBrush(Color.FromArgb(105, Color.Black));
+        e.Graphics.FillEllipse(thumbShadow, new Rectangle(thumb.X, thumb.Y + 2, thumb.Width, thumb.Height));
+        using var thumbFill = new LinearGradientBrush(thumb,
+            ColorFx.Lighten(UiPalette.OnAccentContainer, .35f),
+            ColorFx.Darken(UiPalette.OnAccentContainer, .20f), LinearGradientMode.Vertical);
+        e.Graphics.FillEllipse(thumbFill, thumb);
+        using var thumbEdge = new Pen(UiPalette.Border, 1);
+        e.Graphics.DrawEllipse(thumbEdge, thumb);
+        if (Focused && ShowFocusCues)
+        {
+            using var focus = new Pen(UiPalette.Accent, 1f) { DashStyle = DashStyle.Dot };
+            e.Graphics.DrawEllipse(focus, Rectangle.Inflate(thumb, 2, 2));
+        }
     }
 }
 
@@ -919,13 +997,27 @@ internal sealed class ColorChip : Control
     public ColorChip()
     {
         Cursor = Cursors.Hand;
+        AccessibleRole = AccessibleRole.PushButton;
+        TabStop = true;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        SetStyle(ControlStyles.Selectable, false);
+        SetStyle(ControlStyles.Selectable, true);
     }
 
     protected override void OnMouseEnter(EventArgs e) { hovering = true; Invalidate(); base.OnMouseEnter(e); }
     protected override void OnMouseLeave(EventArgs e) { hovering = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+    protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyCode is Keys.Space or Keys.Enter)
+        {
+            OnClick(EventArgs.Empty);
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -950,6 +1042,11 @@ internal sealed class ColorChip : Control
                    LinearGradientMode.Vertical))
         using (var pen = new Pen(edge, 1f))
             g.DrawPath(pen, path);
+        if (Focused)
+        {
+            using var focus = new Pen(UiPalette.Accent, 2f);
+            g.DrawPath(focus, path);
+        }
     }
 }
 

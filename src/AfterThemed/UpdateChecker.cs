@@ -31,7 +31,7 @@ internal static class UpdateChecker
 
         var tag = root.TryGetProperty("tag_name", out var tagElement) ? tagElement.GetString() : null;
         var latestVersion = ParseVersion(tag);
-        if (latestVersion is null || latestVersion.CompareTo(currentVersion) <= 0) return null;
+        if (latestVersion is null || tag!.Contains('-') || CompareVersions(latestVersion, currentVersion) <= 0) return null;
 
         var pageUrl = root.TryGetProperty("html_url", out var pageElement) && !string.IsNullOrWhiteSpace(pageElement.GetString())
             ? pageElement.GetString()!
@@ -49,6 +49,12 @@ internal static class UpdateChecker
         if (metadata >= 0) trimmed = trimmed[..metadata];
         return Version.TryParse(trimmed, out var version) ? version : null;
     }
+
+    // Version treats omitted components as -1; 1.3.13 and 1.3.13.0 are the same release.
+    internal static int CompareVersions(Version left, Version right) => Normalize(left).CompareTo(Normalize(right));
+
+    private static Version Normalize(Version version) =>
+        new(version.Major, version.Minor, Math.Max(0, version.Build), Math.Max(0, version.Revision));
 
     private static string? FindInstallerUrl(JsonElement root)
     {

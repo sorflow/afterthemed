@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $projectFile = Join-Path $projectRoot 'DvauiThemeEditor.csproj'
+$version = & (Join-Path $PSScriptRoot 'Get-ReleaseVersion.ps1') -ProjectFile $projectFile
 $publishDirectory = Join-Path $projectRoot 'artifacts\publish\win-x64'
 $installerScript = Join-Path $PSScriptRoot 'AfterThemed.iss'
 
@@ -32,12 +33,16 @@ if (-not (Test-Path -LiteralPath $publishedExecutable -PathType Leaf)) {
     throw "Published executable was not created: $publishedExecutable"
 }
 
-& $compiler /Qp $installerScript
+& $compiler /Qp "/DMyAppVersion=$version" $installerScript
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
 
-$installer = Join-Path $projectRoot 'artifacts\installer\AfterThemed-Setup-1.3.13.exe'
+$installer = Join-Path $projectRoot "artifacts\installer\AfterThemed-Setup-$version.exe"
 if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
     throw "Installer was not created: $installer"
 }
 
 Write-Host "Installer created: $installer"
+$checksumPath = Join-Path $projectRoot 'artifacts\installer\SHA256SUMS.txt'
+$checksum = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -LiteralPath $checksumPath -Encoding ascii -Value "$checksum  $([IO.Path]::GetFileName($installer))"
+Write-Host "Checksum created: $checksumPath"

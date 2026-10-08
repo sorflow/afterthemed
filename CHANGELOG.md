@@ -2,29 +2,88 @@
 
 All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
-## Unreleased
+## 1.3.13 - 2026-10-08
 
-### Import themes from DVAUI DLLs
+### AEP Downgrader
+
+- Add an **AEP Downgrader** tab. Drop `.aep` projects in (or pick them), choose After Effects 24.x, 23.x, 22.x, or 18.x, and AfterThemed writes a converted copy beside each original as `name (AE 23.x).aep`. Originals are never modified, existing files are never replaced, and a failed conversion leaves nothing behind.
+- Conversions reproduce After Effects' own *Save As*: the version header is rewritten; Material Options › Shadow Color is removed for 23.x and older; Light Transmission, the four-byte layer-record field, and the spatial property flag added in 23.x are removed for 22.x and older; and a preview setting added after 18.x is removed for 18.x. Everything else is copied byte for byte. 19.x, 20.x, and 21.x use the 18.x format.
+- Verified against After Effects 25.6, 24.6, 23.6, 22.6, and 18.4 saves, and by opening converted projects in After Effects 23.6 and 18.4.
+- Add `--downgrade-aep <input> <output> <major>` for command-line conversion.
+
+### Palette tools
+
+- Show a WCAG contrast score for interface text and each accent, list failing pairs, and fix them with **Fix** or **Fix all** by adjusting only lightness.
+- Add **Match** (build Background, Panels, Raised, and text from the primary color), **Shuffle** with per-role locks, and **Image** (extract a palette from an image or a dropped file).
+- Hovering a color role highlights every place it appears in the live preview. The preview now shows the Danger color as an expression-error marker.
+
+### Sharing and history
+
+- Share a theme as a short `AT1-…` code and apply codes from others.
+- Export and import `.afterthemed` files, including a PNG thumbnail. Imported files are validated strictly before anything is applied.
+- Keep a history of the last ten installed themes with **Load** and **Reinstall**.
+- Add a community **Gallery** read from `gallery/index.json`, with **Submit current theme**. Gallery themes never apply text replacements.
+
+### Installation
+
+- Make **Restore stock After Effects** a prominent action with a confirmation dialog.
+- Optionally install to every detected After Effects version at once.
+- Notice when an After Effects update replaced an installed theme and offer **Re-apply**.
+- Remember the theme being edited and reopen it on the next launch.
+
+### Interface
+
+- Add a Themes | AEP Downgrader switch to the title bar.
+- Add the **Fall** appearance: ember and cream with a cocoa preview, gold and mustard accents, a paper texture, a leaf logo, a leaf-colored Install animation, and suggested fall palettes.
+- Add 28 built-in palettes (50 in total): Titanium, Deep Sea, Plum Studio, Copper, Moss, Monochrome, Electric Violet, Arctic, Warm Paper, Cherry Graphite, Catppuccin Macchiato, Catppuccin Frappé, Catppuccin Latte, Rosé Pine Moon, Rosé Pine Dawn, Tokyo Night Storm, Everforest Light, Ayu Mirage, Nightfox, Poimandres, Vesper, Graphite Amber, Sunset Dusk, Sakura, Harvest, Maple, Forest Floor, and Golden Hour.
+- Replace the logo and application icon with the new pixel-ring mark.
+- Rework the update prompt in the editor's style with **Download update**, **View release**, and **Skip this version**.
+- The Install button fills with a pixel scanline on hover and loops it while installing; the animation also runs when Windows animation effects are turned off.
+- Fix cramped controls in the project panel and the double focus ring on dropdowns.
+
+### Installer
+
+- Brand the installer with the new artwork and colors.
+- Offer **Install for me only** or **Install for all users**, folder and Start menu pages on a fresh install, and an optional sign-in launch.
+- Associate `.afterthemed` files with AfterThemed and add **Downgrade with AfterThemed** to the Explorer menu for `.aep` files.
+
+### Earlier unreleased changes
+
+#### Interface
+
+- Redesign the editor with a consistent charcoal workspace, layered panels, clearer live preview, and compact color cards that fit at the minimum window size.
+- Make color swatches reachable by keyboard with a visible focus outline.
+- Match the reference's rounded cards with a 40px radius on project and controls panels and a 17px radius on compact color cards. Keep the live preview's tighter frame for its text and sample.
+- Paint rounded card edges without a hard clipping region so square corner artifacts do not show through the antialiased curves.
+
+#### Releases and updates
+
+- Publish tested Windows installers, SHA-256 checksums, and license files to GitHub Releases on matching version tags. Keep releases in draft until every asset is uploaded; prevent overwriting published releases.
+- Read the installer version from the app project and reject mismatched release tags.
+- Add Update and Ignore actions to the startup popup. Remember ignored versions across restarts and notify again for a newer release; Escape dismisses for the current session only.
+- Treat three- and four-component versions with trailing zeroes as equal and keep the popup open if the browser cannot launch.
+
+#### Import themes from DVAUI DLLs
 
 - Add `.dll` to Import Theme. Read supported native color tables and embedded Spectrum JSON resources directly from donor DLL data, including themed DLLs, and load an editable palette into the existing preview.
 - Recognize built-in palettes and retain their mapping settings; infer roles from frequently occurring visible colors for unknown palettes. Generate and Install apply the imported palette using the selected target's own supported layout.
 - Keep imported accent and foreground settings when reading the editor's custom/imported palette.
 
-### Original recovery
+#### Original recovery
 
 - Replace the blocked native-generation path with a recovery dialog that searches current and legacy AfterThemed backups and accepts a user-selected backup folder or DLL.
 - Import only Adobe-verified backups matching the selected DLL's exact file version, identity, architecture, linker timestamp, and section layout. Verify the staged bytes again, preserve them with recovery protection, and resume the requested operation.
 - Restore can recover a missing original from an older backup before creating restore output. Cancel exits cleanly without another error/report popup.
 - Correct the distinction between a missing snapshot and a present snapshot that failed verification; include recognized built-in theme information for rejected snapshots.
 
-### Originals library
+#### Originals library
 
 - Group original snapshots by After Effects release, with readable DLL and exact-build subfolders and collision-safe capture IDs.
 - Automatically organize old hash-named folders while preserving DLL bytes, protection records, and active restore selection; retain conflicting or malformed records for inspection.
 - Recover active pointers after interrupted organization, retain compatibility with unmigrated snapshots, and serialize library access during capture, lookup, restore, and migration.
 - Add library instructions and an explicitly labeled AE-version library entry point. Organized libraries require 1.3.13 or later.
 
-### Protected originals and recovery
+#### Protected originals and recovery
 
 - Captures now validate the stored bytes, serialize simultaneous captures, and publish the DLL, metadata, Windows DPAPI protection record, and recovery copy together. Published files are read-only.
 - Restore verifies authenticated metadata and SHA-256, uses the recovery copy if the primary is damaged or missing, and recreates a missing installed DLL. A damaged installed PE no longer prevents restore.
@@ -34,7 +93,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - AE 2025's V2/V4/V5 companion layout is supported; recognized but incomplete companion layouts now stop generation instead of silently skipping native colors.
 - Activity and exception details persist locally in the Logs folder; startup initialization failures are handled in the UI. CI now runs the CEP apply/restore smoke test.
 
-### Added
+#### Added
 
 - After Effects installations are now discovered across the whole machine instead of only the two default `Program Files` folders. The uninstall registry, Adobe's own `InstallPath` keys, and the Adobe layout on every fixed drive are merged and de-duplicated, so an installation moved off the system drive is found.
 - A startup chooser names every detected release and confirms which one to theme. It appears when there is a choice to make — several installations, or no usable remembered target — and the button beside `INSTALLED TARGET` reopens it at any time. That button previously opened a bare file dialog; the chooser lists the detected releases and still offers a manual browse.
@@ -42,7 +101,7 @@ All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 - `--list-installs` prints what the detection engine sees, so a missed installation can be reported without screenshots.
 - AfterThemed now checks GitHub for the latest release when the app opens. If a newer version is available, a popup offers the installer download and release page.
 
-### Fixed
+#### Fixed
 
 - Release ordering no longer follows the `dvaui.dll` file version. After Effects CC 2019 ships dvaui 16.1 while After Effects 2021 ships dvaui 15.4, so a version-ordered list offered a 2019 release ahead of a 2021 one. Ordering now follows the release year recorded in the installation folder.
 - The version shown in About and in bug reports no longer includes the full commit hash appended to the informational version. The commit is kept in short form, which still identifies the exact build.

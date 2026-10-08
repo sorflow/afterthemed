@@ -1,0 +1,217 @@
+/* Reference palette: electric blue ink and icy paper, with flat outlined regions.
+   Editor appearance stays independent of the palette being authored. */
+:root, :root[data-ui-theme="dark"], :root[data-ui-theme="light"], :root[data-ui-theme="mocha"] {
+  --reference-blue: var(--ink);
+  --reference-ice: var(--paper);
+  --ui-shell: var(--reference-blue);
+  --ui-workspace: var(--reference-blue);
+  --ui-surface: var(--reference-ice);
+  --ui-raised: var(--paper-raised);
+  --ui-raised-hover: var(--paper-hover);
+  --ui-canvas: var(--paper-raised);
+  --ui-text: var(--ink);
+  --ui-muted: var(--paper-muted);
+  --ui-subtle: var(--paper-subtle);
+  --ui-ring: var(--paper-ring);
+  --ui-border: var(--paper-border);
+  --ui-gutter: transparent;
+  --ui-accent: var(--ink);
+  --ui-accent-text: var(--paper);
+  --ui-accent-soft: var(--paper-soft);
+  --ui-accent-muted: var(--ink);
+  --ui-activity: var(--ink);
+  --ui-backdrop: var(--backdrop);
+  --ui-shadow: var(--shadow-ink);
+  --surface-grain: none;
+  --apple-picker-surface: var(--paper);
+  --apple-picker-surface-solid: var(--paper);
+  --apple-picker-label: var(--ink);
+  --apple-picker-secondary: var(--paper-muted);
+  --apple-picker-fill: var(--paper-soft);
+  --apple-picker-selected: #fff;
+  --apple-picker-separator: var(--paper-ring);
+  color: var(--ui-text);
+  background: var(--ui-shell);
+  color-scheme: light;
+}
+:root[data-ui-theme="light"] { --ui-shell: var(--paper); --ui-workspace: var(--paper); }
+:root[data-ui-theme="mocha"] { --ui-shell: var(--ink-deep); --ui-workspace: var(--ink-deep); }
+
+/* Blue regions carry their own foreground roles. */
+.titlebar, .workspace > .preview-card, .workspace-switcher {
+  --ui-text: var(--paper);
+  --ui-muted: var(--ink-muted);
+  --ui-subtle: var(--ink-subtle);
+  --ui-ring: var(--ink-ring);
+  --ui-border: var(--ink-ring);
+  --ui-surface: var(--ink);
+  --ui-raised: var(--ink-raised);
+  --ui-raised-hover: var(--ink-hover);
+  --ui-accent: var(--paper);
+  --ui-accent-text: var(--ink);
+  --ui-accent-soft: var(--ink-raised);
+  --ui-accent-muted: var(--paper);
+  color: var(--ui-text);
+}
+.app-shell { background: var(--ui-shell); }
+.titlebar { height: 76px; background: var(--ink); padding-inline: 24px; }
+.brand strong { font-size: 17px; font-weight: 500; letter-spacing: -.035em; }
+.brand small { font-weight: 400; color: var(--ui-muted); }
+.brand-ring { background: transparent; border: 2px solid currentColor; transform: none; }
+.brand-ring::after { inset: 5px; background: currentColor; }
+.window-controls .icon-button::before { background: var(--ink-ring); box-shadow: none; }
+.window-controls .icon-button:hover::before,
+.window-controls .icon-button:focus-visible::before { background: var(--paper); }
+.title-actions button { font-size: 12px; font-weight: 400; }
+.title-actions .secondary-button { border: 1px solid var(--ink-line); background: transparent; }
+.title-actions .install-theme-button {
+  width: 126px; border: 1px solid var(--paper); background: var(--paper);
+  color: var(--ink); box-shadow: none; font-size: 12px; font-weight: 500;
+}
+.title-actions .install-theme-button:hover { background: var(--paper-soft); filter: none; }
+.install-theme-sparkles, .install-theme-sequence { display: none; }
+
+.workspace {
+  margin: 0; padding: 12px 24px 24px; gap: 20px;
+  border: 0; border-radius: 0; background-image: none; box-shadow: none;
+  grid-template-columns: minmax(220px, 240px) minmax(370px, 1fr) minmax(286px, 310px);
+}
+.workspace > .surface, .workspace > .preview-card {
+  border: 1px solid var(--ui-border); border-radius: 16px;
+  padding: 24px 20px; background: var(--ui-surface); box-shadow: none;
+}
+.workspace > .project-card, .workspace > .inspector-card { border-color: transparent; }
+.workspace > .preview-card { padding: 24px; }
+.panel-heading h2 { font-size: 26px; font-weight: 400; letter-spacing: -.035em; }
+.panel-heading p { font-size: 12px; line-height: 1.5; }
+.preview-heading h1 { font-size: clamp(26px, 2.6vw, 38px); font-weight: 400; letter-spacing: -.035em; }
+.preview-caption { font-size: 12px; }
+.preview-heading { margin-bottom: 24px; }
+.preview-tools button { border: 1px solid var(--ui-border); border-radius: 20px; padding-inline: 12px; height: 34px; }
+.preview-tools button:hover { background: var(--ui-raised); }
+.preview-stage { border-radius: 8px; box-shadow: none; border: 1px solid var(--ui-border); }
+.preview-footer { border-top: 1px solid var(--ui-border); margin-top: 16px; padding-top: 16px; }
+.preview-footer button, .preview-footer span { font-size: 11px; font-weight: 400; }
+.palette-ribbon small { color: var(--ui-muted); font-size: 10px; font-weight: 400; }
+.palette-ribbon button > span { border-color: var(--ui-border); box-shadow: none; }
+
+.text-field, .text-area, .editor-dropdown, .current-palette,
+.utility-row button, .activity-trigger, .wide-action, .panel-actions button {
+  background: transparent; border: 1px solid var(--ui-border); box-shadow: none;
+}
+.text-field { font-size: 13px; font-weight: 400; }
+.current-palette { padding: 8px; border-radius: 12px; }
+.current-palette-name { font-size: 13px; font-weight: 500; }
+.browse-palette-label { color: var(--ui-accent); font-size: 12px; }
+.import-palette { justify-content: flex-start; border-radius: 20px; padding-inline: 8px; }
+.field-label { color: var(--ui-text); font-size: 12px; font-weight: 400; }
+.utility-row button, .activity-trigger, .panel-actions button { font-weight: 400; }
+.utility-row button:hover, .activity-trigger:hover { box-shadow: none; }
+.safety-note { background: transparent; color: var(--ui-muted); }
+.activity-wave { color: var(--ui-accent); filter: none; }
+.color-row, .cutoff-control { background: transparent; box-shadow: none; }
+.color-row label { font-size: 12px; font-weight: 400; }
+.color-group legend { color: var(--ui-muted); font-size: 11px; font-weight: 400; }
+.hex-field { background: transparent; color: var(--ui-muted); box-shadow: none; font-weight: 400; }
+.segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; height: 42px; box-sizing: border-box; background: transparent; border: 1px solid var(--ui-border); border-radius: 24px; padding: 4px; box-shadow: none; }
+.segmented button { display: flex; align-items: center; justify-content: center; min-width: 0; height: 32px; padding: 0 4px; gap: 5px; border-radius: 20px; font-size: 11px; line-height: 1; font-weight: 500; white-space: nowrap; }
+.segmented button svg { width: 14px; height: 14px; flex: none; }
+.segmented button:not(.selected):hover { background: var(--ui-raised); color: var(--ui-text); }
+.segmented button:focus-visible { outline-offset: -2px; }
+.segmented button.selected { background: var(--ui-accent); color: var(--ui-accent-text); box-shadow: none; }
+.segmented button.selected svg { color: currentColor; }
+.toggle-row { background: transparent; border: 1px solid var(--ui-border); }
+.toggle-row input:checked + .toggle-visual { background: var(--ui-accent); }
+.toggle-row:focus-within { outline-color: var(--ui-accent); }
+
+/* Portal surfaces share the paper palette, including the color picker. */
+.app-dialog, .app-dialog:has(.palette-browser), .appearance-popover,
+.more-popover, .activity-popover, .editor-dropdown-menu {
+  background: var(--ui-surface); background-image: none; border-radius: 16px;
+  border: 1px solid var(--ui-border); box-shadow: 0 16px 48px var(--ui-shadow);
+}
+.appearance-popover, .more-popover {
+  --ui-surface: var(--paper); --ui-text: var(--ink); --ui-muted: var(--paper-muted);
+  --ui-raised: var(--paper-soft); --ui-accent: var(--ink); --ui-ring: var(--paper-ring);
+  --ui-border: var(--paper-border);
+}
+.dialog-heading h2 { font-size: 28px; font-weight: 400; letter-spacing: -.035em; }
+.dialog-heading p { font-size: 12px; }
+.dialog-button { border-radius: 24px; font-weight: 400; font-size: 12px; }
+.dialog-button.ghost, .install-option, .about-hero, .about-links button,
+.report-preview, .editor-dropdown-option.active { box-shadow: none; }
+.install-option, .about-hero, .about-links button, .report-preview { background-image: none; }
+.install-option.selected { box-shadow: none; border-color: var(--ui-accent); }
+.palette-option[aria-pressed="true"] { box-shadow: none; background: var(--ui-accent-soft); }
+.apple-picker-material { backdrop-filter: none; background: var(--apple-picker-surface); }
+button:focus-visible, summary:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+::selection { background: var(--ink); color: var(--paper); }
+.titlebar ::selection, .preview-card ::selection { background: var(--paper); color: var(--ink); }
+input, textarea { caret-color: var(--ui-accent); }
+* { scrollbar-width: thin; scrollbar-color: var(--ui-subtle) transparent; }
+
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .workspace { padding-inline: 16px; gap: 16px; grid-template-columns: 192px minmax(0, 1fr) 246px; }
+  .workspace > .surface { padding-inline: 16px; }
+}
+@media (max-width: 1100px) {
+  .workspace { padding: 0 20px 20px; gap: 0; }
+  .workspace-switcher { margin-inline: 20px; border: 1px solid var(--ink-ring); background: var(--ink); border-radius: 24px; }
+  .workspace-switcher button { border-radius: 20px; color: var(--ink-muted); }
+  .workspace-switcher button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+  .workspace-switcher button[aria-pressed="true"] svg { color: currentColor; }
+  .workspace > .surface { padding: 24px 20px; }
+}
+@media (max-height: 780px) {
+  .titlebar { height: 60px; }
+  .workspace > .surface { padding-top: 18px; padding-bottom: 16px; }
+  .panel-heading h2 { font-size: 24px; }
+}
+@media (max-width: 560px) {
+  .titlebar { height: 64px; padding-inline: 12px; }
+  .brand strong { font-size: 14px; }
+  .workspace { padding: 0 12px 12px; }
+  .workspace-switcher { margin-inline: 12px; }
+  .workspace > .surface, .workspace > .preview-card { padding: 20px 14px 16px; }
+  .preview-heading h1 { font-size: 27px; }
+  .preview-tools button { height: 32px; }
+  .title-actions .install-theme-button { width: 108px; font-size: 11px; }
+  .palette-ribbon small { font-size: 8px; }
+}
+
+/* Keep inherited sprite-label and brand colors inside the reference palette. */
+.brand-mark { color: var(--ui-text); }
+.install-theme-label { color: inherit; font: inherit; }
+input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; }
+
+/* A single indicator travels beneath fixed tab labels. */
+.segmented { position: relative; isolation: isolate; }
+.segmented::before {
+  content: ''; position: absolute; z-index: -1; top: 4px; left: 4px;
+  width: calc((100% - 12px) / 3); height: 32px; border-radius: 20px;
+  background: var(--ui-accent); transition: transform 180ms cubic-bezier(.22, 1, .36, 1);
+}
+.segmented[data-selected="text"]::before { transform: translateX(calc(100% + 2px)); }
+.segmented[data-selected="panels"]::before { transform: translateX(calc(200% + 4px)); }
+.segmented button.selected { background: transparent; font-weight: 500; }
+.segmented button { transition: color 180ms ease; }
+.segmented button:focus-visible { outline-color: currentColor; }
+.palette-option { position: relative; gap: 8px; }
+.palette-option .palette-strip { height: 20px; transform: scaleY(.6); transform-origin: center; transition: transform 180ms ease; }
+.palette-option:is(:hover, :focus-visible) .palette-strip { transform: scaleY(1); }
+.palette-preview-action { display: flex; justify-content: space-between; align-items: center;
+  width: 100%; height: 24px; color: var(--ui-accent); font-size: 11px; opacity: 0;
+  transform: translateY(3px); transition: opacity 180ms ease, transform 180ms ease; }
+.palette-option:is(:hover, :focus-visible, [aria-pressed="true"]) .palette-preview-action { opacity: 1; transform: none; }
+.palette-option[aria-pressed="true"] { border: 1px solid var(--ui-accent); box-shadow: none; }
+@media (hover: none) { .palette-preview-action { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .segmented::before, .segmented button, .palette-option .palette-strip, .palette-preview-action { transition: none; }
+}
+
+/* Dropdown open/focus: one thin accent ring instead of outline + gap + border. */
+.editor-dropdown:focus-visible, .editor-dropdown[aria-expanded="true"] {
+  outline: none; border-color: var(--ui-accent); box-shadow: inset 0 0 0 1px var(--ui-accent);
+}
+.editor-dropdown[aria-expanded="true"] > svg { color: var(--ui-accent); }

@@ -9,6 +9,7 @@ namespace AfterThemed.RegressionTests;
 
 internal static class Program
 {
+    [STAThread]
     private static int Main()
     {
         var failures = new List<string>();
@@ -105,6 +106,22 @@ internal static class Program
             UpdateCheckerDetectsNewerGithubRelease, failures);
         Run("update checker ignores current and prerelease versions",
             UpdateCheckerIgnoresCurrentAndPrereleaseVersions, failures);
+        Run("update checks compare numeric versions and ignore drafts",
+            UpdateCheckerVersionBoundaries, failures);
+        Run("ignored updates survive restart and allow the next release",
+            IgnoredUpdatesPersist, failures);
+        Run("invalid or unreadable update preferences do not suppress updates",
+            InvalidUpdatePreferences, failures);
+        Run("update popup distinguishes Ignore from session dismissal",
+            UpdatePopupIgnoreAndDismiss, failures);
+        Run(".afterthemed documents round-trip and reject incomplete themes", ThemeDocumentRoundTrip, failures);
+        Run("share codes round-trip and reject damaged input", ShareCodeRoundTrip, failures);
+        Run("gallery index keeps only complete themes", GalleryIndexSkipsInvalidThemes, failures);
+        Run("theme history keeps ten installs and notices replaced targets", ThemeHistoryTracksInstalls, failures);
+        Run("AEP downgrade to 24.x changes only the version header", AepDowngradeTo24, failures);
+        Run("AEP downgrade to 23.x removes Shadow Color and keeps everything else", AepDowngradeTo23, failures);
+        Run("AEP downgrade never overwrites and rejects unsuitable input", AepDowngradeRefusals, failures);
+        Run("AEP downgrade to 22.x and 18.x converts layer records and falls back to 18.x", AepDowngradeOlderFormats, failures);
 
         foreach (var failure in failures) Console.Error.WriteLine($"FAIL: {failure}");
         if (failures.Count != 0) return 1;
@@ -1416,6 +1433,388 @@ internal static class Program
         """;
         Require(UpdateChecker.ParseLatestRelease(prereleaseJson, new Version(1, 3, 12)) is null,
             "prerelease was reported as a stable update");
+    }
+
+    private static void UpdatePopupIgnoreAndDismiss()
+    {
+        var update = new UpdateInfo(new Version(9, 0, 0), "v9.0.0",
+            UpdateChecker.LatestReleasePageUrl, UpdateChecker.LatestReleasePageUrl);
+        foreach (var ignore in new[] { true, false })
+        {
+            using var dialog = new UpdateAvailableForm(update)
+            {
+                ShowInTaskbar = false,
+                StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                Location = new Point(-32000, -32000)
+            };
+            dialog.Shown += (_, _) =>
+            {
+                if (ignore)
+                    dialog.Controls.OfType<System.Windows.Forms.Button>().Single(button => button.Text == UpdateAvailableForm.SkipText).PerformClick();
+                else
+                    dialog.Close();
+            };
+            var result = dialog.ShowDialog();
+            Require((result == System.Windows.Forms.DialogResult.Ignore) == ignore,
+                "Ignore and session dismissal produced the same result");
+        }
+    }
+
+    private static void UpdateCheckerVersionBoundaries()
+    {
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v1.3.13.0"}""", new Version(1, 3, 13)) is null,
+            "an equivalent four-component version was reported as newer");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v1.3.13"}""", new Version(1, 3, 13, 0)) is null,
+            "an equivalent three-component version was reported as newer");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v1.3.9"}""", new Version(1, 3, 13)) is null,
+            "an older release was reported as an update");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v1.3.100"}""", new Version(1, 3, 13)) is not null,
+            "numeric version ordering was replaced by lexical ordering");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v9.0.0","draft":true}""", new Version(1, 3, 13)) is null,
+            "a draft release was offered before it was published");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"v9.0.0-beta","prerelease":false}""", new Version(1, 3, 13)) is null,
+            "a prerelease tag was offered as a stable update");
+        Require(UpdateChecker.ParseLatestRelease("""{"tag_name":"invalid"}""", new Version(1, 3, 13)) is null,
+            "an invalid version was accepted");
+        var withoutInstaller = UpdateChecker.ParseLatestRelease("""{"tag_name":"v9.0.0","assets":[]}""", new Version(1, 3, 13));
+        Require(withoutInstaller?.DownloadUrl == UpdateChecker.LatestReleasePageUrl,
+            "a release without an installer should link to the release page");
+    }
+
+    private static void IgnoredUpdatesPersist()
+    {
+        var root = NewTempDirectory("ignored-updates");
+        try
+        {
+            var data = Path.Combine(root, "preferences");
+            var preferences = new UpdatePreferences(data);
+            Require(preferences.ShouldNotify(new Version(1, 3, 14)), "a fresh profile suppressed an update");
+            preferences.Ignore(new Version(1, 3, 14));
+            var restarted = new UpdatePreferences(data);
+            Require(!restarted.ShouldNotify(new Version(1, 3, 14, 0)), "ignored version did not survive restart");
+            Require(!restarted.ShouldNotify(new Version(1, 3, 13)), "an older release bypassed the ignore preference");
+            Require(restarted.ShouldNotify(new Version(1, 3, 15)), "ignoring one version suppressed the next release");
+            restarted.Ignore(new Version(1, 3, 15));
+            Require(!new UpdatePreferences(data).ShouldNotify(new Version(1, 3, 15)), "a second ignore was not persisted");
+            Require(Directory.GetFiles(data, "*.tmp").Length == 0, "temporary preference files were left behind");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static ThemeDocument SampleTheme(string name = "Sample Theme") => new(name, ThemeSettings.SunsetDusk)
+    {
+        Author = "Tester",
+        Font = "Inter",
+        TextReplacements = "Composition => Comp",
+        ThemePanels = false,
+        Thumbnail = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    };
+
+    private static void RequireSameSettings(ThemeSettings expected, ThemeSettings actual, string context)
+    {
+        Require(ThemeDocuments.Colors(expected).Select(ThemeDocuments.Hex).SequenceEqual(ThemeDocuments.Colors(actual).Select(ThemeDocuments.Hex)),
+            $"{context}: colors changed");
+        Require(Math.Abs(expected.TextCutoff - actual.TextCutoff) < .006f, $"{context}: cutoff changed");
+        Require(expected.ExactAccents == actual.ExactAccents, $"{context}: exact accents changed");
+        Require(Math.Abs(expected.ForegroundAlphaFloor - actual.ForegroundAlphaFloor) < .006f, $"{context}: alpha floor changed");
+    }
+
+    private static void ThemeDocumentRoundTrip()
+    {
+        var original = SampleTheme();
+        var parsed = ThemeDocuments.Parse(ThemeDocuments.Serialize(original));
+        RequireSameSettings(original.Settings, parsed.Settings, "document");
+        Require(parsed.Name == original.Name && parsed.Author == "Tester" && parsed.Font == "Inter" &&
+                parsed.TextReplacements == original.TextReplacements && parsed.ThemePanels == false &&
+                parsed.Thumbnail == original.Thumbnail, "optional fields were lost");
+        Require(ThemeDocuments.Parse(ThemeDocuments.Serialize(original, includeThumbnail: false)).Thumbnail is null,
+            "thumbnail was kept when excluded");
+
+        var json = ThemeDocuments.Serialize(original);
+        Require(Capture(() => ThemeDocuments.Parse(json.Replace("\"afterthemed\"", "\"other\""))) is InvalidDataException,
+            "a foreign format was accepted");
+        Require(Capture(() => ThemeDocuments.Parse(json.Replace("\"danger\": \"#FF6F86\"", "\"danger\": \"red\""))) is InvalidDataException,
+            "an invalid color was accepted");
+        Require(Capture(() => ThemeDocuments.Parse(json.Replace("\"danger\": \"#FF6F86\"", "\"danger\": 5"))) is InvalidDataException,
+            "a non-string color was accepted");
+        var huge = ThemeDocuments.Parse(json.Replace(original.Thumbnail!, "data:image/png;base64," + new string('A', 300_000)));
+        Require(huge.Thumbnail is null, "an oversized thumbnail was kept");
+        var script = ThemeDocuments.Parse(json.Replace(original.Thumbnail!, "javascript:alert(1)"));
+        Require(script.Thumbnail is null, "a non-PNG thumbnail was kept");
+    }
+
+    private static void ShareCodeRoundTrip()
+    {
+        var original = SampleTheme("Sunset · Dusk ✨");
+        var code = ThemeDocuments.ToShareCode(original);
+        Require(code.StartsWith("AT1-") && code.Length < 80, $"share code is not short: {code}");
+        var parsed = ThemeDocuments.FromShareCode(" " + code[..10] + "\n" + code[10..] + " ");
+        RequireSameSettings(original.Settings, parsed.Settings, "share code");
+        Require(parsed.Name == original.Name, "share code lost the name");
+        var longName = ThemeDocuments.FromShareCode(ThemeDocuments.ToShareCode(SampleTheme(new string('é', 60))));
+        Require(longName.Name.Length > 0 && longName.Name.All(c => c == 'é'), "a long name was cut mid-character");
+        Require(Capture(() => ThemeDocuments.FromShareCode("AT1-abc")) is InvalidDataException, "a truncated code was accepted");
+        Require(Capture(() => ThemeDocuments.FromShareCode("XYZ-" + code[4..])) is InvalidDataException, "a wrong prefix was accepted");
+        Require(Capture(() => ThemeDocuments.FromShareCode("AT1-!!!!")) is InvalidDataException, "a damaged code was accepted");
+    }
+
+    private static void GalleryIndexSkipsInvalidThemes()
+    {
+        var valid = ThemeDocuments.Serialize(SampleTheme("Good"), includeThumbnail: false);
+        var themes = ThemeGallery.Parse($"{{\"themes\":[{valid},{{\"format\":\"afterthemed\",\"name\":\"Broken\"}},null,42,\"text\"]}}");
+        Require(themes.Count == 1 && themes[0].Name == "Good", $"gallery kept {themes.Count} themes");
+        Require(Capture(() => ThemeGallery.Parse("{\"nothing\":true}")) is InvalidDataException, "an index without themes was accepted");
+        Require(ThemeGallery.SubmitUrl(SampleTheme()).StartsWith("https://github.com/sorflow/afterthemed/issues/new?"),
+            "submission does not open the AfterThemed repository");
+    }
+
+    private static void ThemeHistoryTracksInstalls()
+    {
+        var root = NewTempDirectory("theme-history");
+        try
+        {
+            var path = Path.Combine(root, "theme-history.json");
+            var targetA = Path.Combine(root, "A", "dvaui.dll");
+            var targetB = Path.Combine(root, "B", "dvaui.dll");
+            Directory.CreateDirectory(Path.GetDirectoryName(targetA)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetB)!);
+            File.WriteAllText(targetA, "theme A");
+            File.WriteAllText(targetB, "theme B");
+
+            ThemeHistory.RecordInstall(path, "1", SampleTheme("Two targets"), targetA, OriginalDllStore.Sha256(targetA));
+            ThemeHistory.RecordInstall(path, "1", SampleTheme("Two targets"), targetB, OriginalDllStore.Sha256(targetB));
+            var file = ThemeHistory.Load(path);
+            Require(file.History.Count == 1 && file.History[0].Targets.Length == 2, "one install into two targets was not grouped");
+            Require(file.Installed.Count == 2, "installed targets were not recorded");
+
+            for (var i = 2; i <= 12; i++)
+                ThemeHistory.RecordInstall(path, i.ToString(), SampleTheme($"Theme {i}"), targetA, OriginalDllStore.Sha256(targetA));
+            file = ThemeHistory.Load(path);
+            Require(file.History.Count == ThemeHistory.Limit && file.History[0].Id == "12", "history did not keep the ten newest installs");
+            Require(file.Installed.Count == 2 && file.Installed.Single(item => item.Target == targetA).EntryId == "12",
+                "a reinstall did not replace the target record");
+
+            Require(ThemeHistory.FindReplaced(file, OriginalDllStore.Sha256).Count == 0, "an untouched install was reported as replaced");
+            File.WriteAllText(targetB, "Adobe update");
+            var replaced = ThemeHistory.FindReplaced(file, OriginalDllStore.Sha256);
+            Require(replaced.Count == 1 && replaced[0].Target == targetB, "a replaced install was not detected");
+            Require(ThemeDocuments.Parse(replaced[0].Theme).Name == "Two targets", "the replaced theme cannot be re-applied");
+
+            ThemeHistory.Forget(path, targetB);
+            Require(ThemeHistory.FindReplaced(ThemeHistory.Load(path), OriginalDllStore.Sha256).Count == 0, "a forgotten target was still reported");
+            File.WriteAllText(path, "{ not json");
+            Require(ThemeHistory.Load(path).History.Count == 0, "a corrupt history file was not tolerated");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static byte[] AepChunk(string id, params byte[][] parts)
+    {
+        var data = parts.SelectMany(part => part).ToArray();
+        var bytes = new List<byte>(Encoding.Latin1.GetBytes(id));
+        var size = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(size, (uint)data.Length);
+        bytes.AddRange(size);
+        bytes.AddRange(data);
+        if (data.Length % 2 == 1) bytes.Add(0);
+        return bytes.ToArray();
+    }
+
+    private static byte[] AepList(string type, params byte[][] children) =>
+        AepChunk("LIST", [Encoding.Latin1.GetBytes(type), .. children]);
+
+    private static byte[] AepMatchName(string name)
+    {
+        var data = new byte[40];
+        Encoding.ASCII.GetBytes(name).CopyTo(data, 0);
+        return AepChunk("tdmn", data);
+    }
+
+    private static readonly byte[] AepTrailer = Encoding.UTF8.GetBytes("<?xpacket begin=\"\"?><x:xmpmeta/><?xpacket end=\"w\"?>");
+
+    /// <summary>A small After Effects 25.6 project with the structures the downgrader must preserve.</summary>
+    private static byte[] SampleAep()
+    {
+        byte[] head = [0x00, 0x60, 0x00, 0x09, 0x0F, 0x0B, 0x06, 0x65, 0x80, 0, 0, 0, 0, 0, 0, 0x0F, 0, 0, 0, 0x3A];
+        var nhed = new byte[32];
+        new byte[] { 0x55, 0x3F, 0xD1, 0x01, 0, 0, 0, 0x1F, 0x55, 0x3F, 0xD1, 0x00 }.CopyTo(nhed, 0x14);
+        var property = (string name, byte value) => new[] { AepMatchName(name), AepList("tdbs", AepChunk("tdb4", [value, 1, 2]), AepChunk("cdat", new byte[8])) };
+        var material = AepList("tdgp", [.. property("ADBE Accepts Lights", 1), .. property("ADBE Light Transmission", 5),
+            .. property("ADBE Shadow Color", 2), .. property("ADBE Appears in Reflections", 3), AepMatchName("ADBE Group End")]);
+        var ldta = Enumerable.Range(0, 164).Select(i => (byte)(i < 160 ? i : 0xAA)).ToArray();
+        var spatial = new byte[124];
+        spatial[0] = 0xDB;
+        spatial[119] = 1;
+        var position = AepList("tdgp", AepMatchName("ADBE Position"), AepList("tdbs", AepChunk("tdb4", spatial)), AepMatchName("ADBE Group End"));
+        var body = AepList("Fold",
+            AepChunk("t\u00e9st", [0xE9, 0xFF, 0x00]),
+            AepList("btdk", [0x4C, 0x49, 0x53, 0x54, 0xFF, 0xFF, 0xFF, 0xFF, 9]),
+            AepList("Layr", AepChunk("ldta", ldta), position, material),
+            AepList("FEE ", AepChunk("ppSn", [0x40, 0x62, 0xC0, 0, 0, 0, 0, 0])),
+            AepList("SecL", AepList("tdgp", property("ADBE Shadow Color", 4))));
+        var form = AepChunk("RIFX", Encoding.ASCII.GetBytes("Egg!"), AepChunk("svap", [0x0F, 0x0B, 0x06, 0x65]),
+            AepChunk("head", head), AepChunk("nhed", nhed), body);
+        return [.. form, .. AepTrailer];
+    }
+
+    private static void AepDowngradeTo24()
+    {
+        var root = NewTempDirectory("aep-24");
+        try
+        {
+            var input = Path.Combine(root, "scene.aep");
+            var original = SampleAep();
+            File.WriteAllBytes(input, original);
+            Require(AepDowngrader.ReadVersion(input) == new AepVersion(25, 6, 0, 101), $"read {AepDowngrader.ReadVersion(input)}");
+            var output = AepDowngrader.OutputPathFor(input, 24);
+            Require(Path.GetFileName(output) == "scene (AE 24.x).aep", output);
+            var result = AepDowngrader.Downgrade(input, output, 24);
+            Require(result.Changes.Count == 1 && AepDowngrader.ReadVersion(output) == new AepVersion(24, 6, 0, 65), "header not rewritten to 24.6");
+            var bytes = File.ReadAllBytes(output);
+            Require(bytes.Length == original.Length, "a 24.x downgrade changed the file size");
+            var changed = Enumerable.Range(0, bytes.Length).Where(i => bytes[i] != original[i]).ToList();
+            var headData = IndexOf(original, "head") + 8;
+            var nhedData = IndexOf(original, "nhed") + 8;
+            Require(changed.All(i => (i >= headData && i < headData + 8) || (i >= nhedData + 0x14 && i < nhedData + 0x20)),
+                "bytes outside the version header changed");
+            Require(File.ReadAllBytes(input).SequenceEqual(original), "the original project was modified");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void AepDowngradeTo23()
+    {
+        var root = NewTempDirectory("aep-23");
+        try
+        {
+            var input = Path.Combine(root, "scene.aep");
+            var original = SampleAep();
+            File.WriteAllBytes(input, original);
+            var result = AepDowngrader.Downgrade(input, AepDowngrader.OutputPathFor(input, 23), 23);
+            var bytes = File.ReadAllBytes(result.OutputPath);
+            var text = Encoding.Latin1.GetString(bytes);
+            Require(AepDowngrader.ReadVersion(result.OutputPath).Major == 23, "header not rewritten to 23.x");
+            Require(!text.Contains("ADBE Shadow Color") && text.Contains("ADBE Accepts Lights") && text.Contains("ADBE Appears in Reflections"),
+                "Shadow Color was not removed cleanly");
+            Require(result.Changes.Any(change => change.Contains("Shadow Color (2×")), string.Join("; ", result.Changes));
+            // Each removed property is a 48-byte tdmn plus its 40-byte tdbs list (8 + 4 + padded tdb4 12 + cdat 16).
+            Require(original.Length - bytes.Length == 2 * 88, $"removed {original.Length - bytes.Length} bytes");
+            Require(BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(4)) + 8 == bytes.Length - AepTrailer.Length, "RIFX size was not updated");
+            Require(bytes.AsSpan(bytes.Length - AepTrailer.Length).SequenceEqual(AepTrailer), "XMP trailer was not kept");
+            Require(text.Contains("t\u00e9st") && bytes.AsSpan(IndexOf(bytes, "t\u00e9st") + 8, 3).SequenceEqual(new byte[] { 0xE9, 0xFF, 0x00 }),
+                "a non-ASCII chunk was not copied byte for byte");
+            Require(text.Contains("btdk") && bytes.AsSpan(IndexOf(bytes, "btdk") + 4, 9).SequenceEqual(new byte[] { 0x4C, 0x49, 0x53, 0x54, 0xFF, 0xFF, 0xFF, 0xFF, 9 }),
+                "an opaque btdk payload changed");
+            var again = AepDowngrader.Downgrade(result.OutputPath, Path.Combine(root, "nope.aep"), 24);
+            Require(false, "an already-older project was converted: " + again.OutputPath);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already from After Effects 23")) { }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void AepDowngradeRefusals()
+    {
+        var root = NewTempDirectory("aep-refuse");
+        try
+        {
+            var input = Path.Combine(root, "scene.aep");
+            File.WriteAllBytes(input, SampleAep());
+            Require(Capture(() => AepDowngrader.Downgrade(input, input, 24)) is InvalidOperationException, "the original could be overwritten");
+            var output = Path.Combine(root, "taken.aep");
+            File.WriteAllText(output, "keep me");
+            Require(Capture(() => AepDowngrader.Downgrade(input, output, 24)) is IOException, "an existing file was replaced");
+            Require(File.ReadAllText(output) == "keep me" && !File.Exists(output + ".partial"), "a refused write left changes behind");
+            File.WriteAllText(Path.Combine(root, "scene (AE 24.x).aep"), "first");
+            Require(Path.GetFileName(AepDowngrader.OutputPathFor(input, 24)) == "scene (AE 24.x) 2.aep", "output name was not numbered");
+            var text = Path.Combine(root, "notes.aep");
+            File.WriteAllText(text, "not a project");
+            Require(Capture(() => AepDowngrader.ReadVersion(text)) is InvalidDataException, "a non-project was accepted");
+            Require(Capture(() => AepDowngrader.Downgrade(input, Path.Combine(root, "x.aep"), 17)) is ArgumentOutOfRangeException, "a target older than 18.x was accepted");
+            var truncated = Path.Combine(root, "cut.aep");
+            File.WriteAllBytes(truncated, SampleAep()[..200]);
+            Require(Capture(() => AepDowngrader.Downgrade(truncated, Path.Combine(root, "cut-out.aep"), 24)) is InvalidDataException, "a truncated project was accepted");
+            Require(!File.Exists(Path.Combine(root, "cut-out.aep")), "a failed conversion left a file");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void AepDowngradeOlderFormats()
+    {
+        var root = NewTempDirectory("aep-older");
+        try
+        {
+            var input = Path.Combine(root, "scene.aep");
+            var original = SampleAep();
+            File.WriteAllBytes(input, original);
+
+            var to22 = AepDowngrader.Downgrade(input, AepDowngrader.OutputPathFor(input, 22), 22);
+            var bytes = File.ReadAllBytes(to22.OutputPath);
+            var text = Encoding.Latin1.GetString(bytes);
+            Require(AepDowngrader.ReadVersion(to22.OutputPath) == new AepVersion(22, 6, 0, 59), $"22.x header: {AepDowngrader.ReadVersion(to22.OutputPath)}");
+            var head = IndexOf(bytes, "head") + 8;
+            Require(bytes[head + 19] == 0x48, "head byte 19 was not set for the 22.x format");
+            Require(!text.Contains("ADBE Light Transmission") && !text.Contains("ADBE Shadow Color") && text.Contains("ADBE Accepts Lights"),
+                "22.x did not remove the 23+ properties");
+            var ldta = IndexOf(bytes, "ldta");
+            Require(BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(ldta + 4)) == 160 &&
+                    bytes.AsSpan(ldta + 8, 160).SequenceEqual(Enumerable.Range(0, 160).Select(i => (byte)i).ToArray()),
+                "the layer record was not trimmed to its first 160 bytes");
+            var spatial = IndexOf(bytes, "ADBE Position") + 40 + 8 + 4;
+            Require(Encoding.Latin1.GetString(bytes, spatial, 4) == "tdb4" && bytes[spatial + 8 + 119] == 0, "the 23+ spatial flag was not cleared");
+            var nhed = IndexOf(bytes, "nhed") + 8;
+            Require(bytes.AsSpan(nhed + 0x14, 8).IndexOfAnyExcept((byte)0) < 0 &&
+                    bytes.AsSpan(nhed + 0x1C, 4).SequenceEqual(new byte[] { 0x55, 0x3F, 0xD1, 0x00 }),
+                "nhed was not zeroed with the project identifier kept");
+            Require(text.Contains("ppSn"), "22.x removed a chunk 22.x still has");
+            Require(BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(4)) + 8 == bytes.Length - AepTrailer.Length, "RIFX size was not updated");
+
+            var to18 = AepDowngrader.Downgrade(input, AepDowngrader.OutputPathFor(input, 18), 18);
+            Require(AepDowngrader.ReadVersion(to18.OutputPath) == new AepVersion(18, 4, 0, 38), "18.x header");
+            Require(!Encoding.Latin1.GetString(File.ReadAllBytes(to18.OutputPath)).Contains("ppSn"), "18.x kept the ppSn chunk");
+
+            var to20 = AepDowngrader.Downgrade(input, AepDowngrader.OutputPathFor(input, 20), 20);
+            Require(Path.GetFileName(to20.OutputPath) == "scene (AE 20.x).aep" && AepDowngrader.ReadVersion(to20.OutputPath).Major == 18 &&
+                    to20.Changes.Any(change => change.Contains("18.x format")), "20.x did not fall back to the 18.x format");
+            Require(File.ReadAllBytes(to20.OutputPath).AsSpan(0, 100).SequenceEqual(File.ReadAllBytes(to18.OutputPath).AsSpan(0, 100)),
+                "the 20.x fallback differs from the 18.x format");
+            Require(AepDowngrader.FormatFor(21) == 18 && AepDowngrader.FormatFor(22) == 22 && AepDowngrader.FormatFor(30) == 24, "format lookup");
+
+            Require(Capture(() => AepDowngrader.Downgrade(to22.OutputPath, Path.Combine(root, "same.aep"), 22)) is InvalidOperationException,
+                "a 22.x project was converted to 22.x");
+            Require(Capture(() => AepDowngrader.Downgrade(to22.OutputPath, Path.Combine(root, "x.aep"), 23)) is InvalidOperationException,
+                "a 22.x project was converted up to 23.x");
+            Require(AepDowngrader.ReadVersion(AepDowngrader.Downgrade(to22.OutputPath, Path.Combine(root, "22-to-18.aep"), 18).OutputPath).Major == 18,
+                "a 22.x project could not go down to 18.x");
+            Require(File.ReadAllBytes(input).SequenceEqual(original), "the original project was modified");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static int IndexOf(byte[] bytes, string id)
+    {
+        var pattern = Encoding.Latin1.GetBytes(id);
+        for (var i = 0; i <= bytes.Length - pattern.Length; i++)
+            if (bytes.AsSpan(i, pattern.Length).SequenceEqual(pattern)) return i;
+        throw new InvalidDataException($"{id} not found");
+    }
+
+    private static void InvalidUpdatePreferences()
+    {
+        var root = NewTempDirectory("invalid-update-preferences");
+        try
+        {
+            var path = Path.Combine(root, "ignored-update.txt");
+            File.WriteAllText(path, "not a version");
+            var preferences = new UpdatePreferences(root);
+            Require(preferences.ShouldNotify(new Version(1, 3, 14)), "corrupt preferences suppressed an update");
+            File.Delete(path);
+            Directory.CreateDirectory(path);
+            Require(preferences.ShouldNotify(new Version(1, 3, 14)), "an unreadable preference suppressed an update");
+            Require(Capture(() => preferences.Ignore(new Version(1, 3, 14))) is IOException or UnauthorizedAccessException,
+                "a failed save silently reported success");
+            Require(Directory.GetFiles(root, "*.tmp").Length == 0, "a failed save leaked a temporary file");
+        }
+        finally { DeleteTestDirectory(root); }
     }
 
     private static void ProtectedOriginalRecovery()
