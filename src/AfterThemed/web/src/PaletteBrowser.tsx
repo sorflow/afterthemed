@@ -32,7 +32,7 @@ export default function PaletteBrowser({ names, previews, selected, onSelect, fe
 
   return <div className="palette-browser">
     <div className="palette-search"><Search size={17} aria-hidden="true" />
-      <input aria-label="Search palettes" placeholder="Find your palette…" value={query} onChange={event => setQuery(event.target.value)} />
+      <input aria-label="Search palettes" placeholder="Search by name" value={query} onChange={event => setQuery(event.target.value)} />
       {featured && <button type="button" className="palette-featured-toggle" aria-pressed={featuredOnly}
         onClick={() => onFeaturedOnlyChange?.(!featuredOnly)}><Leaf size={14} /> {featured.label}</button>}
       <span aria-live="polite">{options.length} {options.length === 1 ? 'palette' : 'palettes'}</span>

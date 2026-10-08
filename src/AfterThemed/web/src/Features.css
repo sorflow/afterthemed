@@ -206,3 +206,5 @@
   .aep-copy { flex-basis: calc(100% - 56px); }
   .aep-status { margin-left: 50px; }
 }
+
+.project-card .import-palette.theme-dll { margin-top: 8px; }

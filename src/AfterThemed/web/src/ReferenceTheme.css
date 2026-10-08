@@ -1,7 +1,7 @@
 /* Reference direction: #1a1a1a enclosure, #252525 cards, quiet gray text,
    bright white headings, and a small amount of spring green. */
 :root {
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: var(--font-ui), "Segoe UI", sans-serif;
   color: #f7f7f7;
   background: #111;
   --frame-edge: #1e1e1e;
@@ -10,7 +10,7 @@
   --surface-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.78' numOctaves='4' seed='19'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 .16'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
-.app-shell { background: #111; font-family: Inter, "Segoe UI", sans-serif; }
+.app-shell { background: #111; font-family: var(--font-ui), "Segoe UI", sans-serif; }
 .titlebar { height: 62px; padding-inline: 25px; border-bottom: 0; background: #111; }
 .window-controls { gap: 0; }
 .window-controls .icon-button {
@@ -80,7 +80,7 @@
   background: linear-gradient(360deg, #aaf7ad 0%, #d9fee7 100%);
   color: #2fa006;
   box-shadow: none;
-  font-family: Inter, sans-serif;
+  font-family: var(--font-ui), sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: normal;
@@ -100,7 +100,7 @@
   margin: 0;
   height: auto;
   color: #2fa006;
-  font: 600 11px/14px Inter, sans-serif;
+  font: 600 11px/14px var(--font-ui), sans-serif;
   text-align: center;
   white-space: nowrap;
 }
@@ -170,7 +170,7 @@
 .text-field:focus, .select-wrap select:focus, .text-area:focus { border-color: #37d97a; box-shadow: 0 0 0 3px #2bd36e26; }
 .select-wrap > svg { color: #aaa; }
 .project-divider { background: #3a3a3a; }
-.path-block p { color: #ddd; font-family: Inter, "Segoe UI", sans-serif; font-size: 11px; }
+.path-block p { color: #ddd; font-family: var(--font-ui), "Segoe UI", sans-serif; font-size: 11px; }
 .icon-button { border: 1px solid var(--frame-edge); border-radius: 11px; background: #303030; color: #c9c9c9; box-shadow: inset 0 0 0 1px var(--frame-ring); transition: background-color 150ms ease, scale 150ms ease; }
 .icon-button:hover { background: #3b3b3b; transform: none; }
 .icon-button:active { scale: .96; }
@@ -203,7 +203,7 @@
 .color-row { min-height: 49px; padding: 6px 7px 6px 12px; border: 1px solid var(--frame-edge); border-radius: 17px; background: #303030; box-shadow: inset 0 0 0 1px var(--frame-ring); }
 .color-row label { color: #ededed; font-size: 11px; font-weight: 600; }
 .color-edit input[type=color] { border-color: #ffffff55; }
-.hex-field { border-color: var(--frame-edge); background: #252525; color: #d9d9d9; box-shadow: inset 0 0 0 1px var(--frame-ring); font: 600 10px Inter, "Segoe UI", sans-serif; }
+.hex-field { border-color: var(--frame-edge); background: #252525; color: #d9d9d9; box-shadow: inset 0 0 0 1px var(--frame-ring); font: 600 10px var(--font-ui), "Segoe UI", sans-serif; }
 .cutoff-control { border: 1px solid var(--frame-edge); border-radius: 17px; background: #303030; box-shadow: inset 0 0 0 1px var(--frame-ring); }
 .cutoff-control > div { color: #eee; font-size: 11px; font-weight: 600; }
 .cutoff-control strong { color: #49e28a; }
@@ -637,7 +637,7 @@ body, .app-shell, .titlebar { background-color: var(--ui-shell); color: var(--ui
   height: 615px;
   border-radius: 13px;
   color: var(--apple-picker-label);
-  font-family: "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", sans-serif;
+  font-family: "SF Pro Display", "SF Pro Text", var(--font-ui), "Segoe UI", sans-serif;
   transform: scale(var(--picker-scale));
   transform-origin: top left;
   animation: apple-picker-in 150ms cubic-bezier(.2,0,0,1);

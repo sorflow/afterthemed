@@ -1,0 +1,73 @@
+/* Distinct: removes the generic "generated UI" defaults while keeping the blue/ice palette.
+   - Type: native Segoe UI Variable for controls, Familjen Grotesk for display, IBM Plex Mono for data.
+   - Shape: one pill (Install theme); everything else is square-shouldered, so hierarchy reads from shape.
+   - No pulsing badges, no tracked uppercase labels, no glows. Imported last. */
+:root {
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Familjen Grotesk", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  --r-control: 5px;
+  --r-card: 10px;
+}
+:root, .app-shell, button, input, textarea, select { font-family: var(--font-ui); }
+
+/* Display type: a grotesk with its own shapes, set a touch heavier and tighter than before. */
+.brand strong, .panel-heading h2, .preview-heading h1, .dialog-heading h2, .about-hero strong {
+  font-family: var(--font-display); font-weight: 500; letter-spacing: -.02em;
+}
+.preview-heading h1 { font-size: clamp(30px, 3vw, 44px); line-height: 1; }
+.panel-heading h2 { font-size: 28px; line-height: 1; }
+.panel-heading p, .preview-heading p { margin-top: 8px; }
+
+/* Data is data: hex values, paths, ratios and readouts are monospaced. */
+.hex-field, .path-block p, .preview-footer span, .contrast-badge, .cutoff-control strong,
+.panel-report strong, .panel-report pre, .activity-popover pre, .share-code, .install-copy small,
+.install-meta, .bundle-path span, .report-preview, .palette-ribbon code, .palette-search > span,
+.history-copy small, .restore-summary small {
+  font-family: var(--font-data); font-weight: 400; letter-spacing: 0;
+}
+.hex-field { font-size: 11px; text-transform: uppercase; }
+.preview-footer span { font-size: 10.5px; }
+.dialog-section-label { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; }
+
+/* The caption is now a plain fact, not a pulsing "live" badge. */
+.live-indicator { display: none; }
+.preview-caption { font-size: 12px; gap: 0; }
+
+/* Color roles read as one continuous specimen bar with codes underneath. */
+.palette-ribbon { gap: 0; }
+.palette-ribbon button { border-radius: 0; }
+.palette-ribbon button > span { height: 40px; border-radius: 0; border: 0; box-shadow: none; }
+.palette-ribbon button:first-child > span { border-radius: var(--r-control) 0 0 var(--r-control); }
+.palette-ribbon button:last-child > span { border-radius: 0 var(--r-control) var(--r-control) 0; }
+.palette-ribbon button:hover > span, .palette-ribbon button:focus-visible > span { transform: scaleY(1.15); transform-origin: bottom; }
+.palette-ribbon small { padding: 10px 6px 0 0; color: var(--ui-text); font-size: 11px; }
+.palette-ribbon code { display: block; padding-top: 2px; color: var(--ui-muted); font-size: 10px; text-transform: uppercase; }
+
+/* Shape hierarchy: cards get a small radius, controls a smaller one, chips none. */
+.app-shell :is(.workspace > .surface, .workspace > .preview-card, .downgrader > .surface,
+.app-dialog, .app-dialog:has(.palette-browser), .appearance-popover, .more-popover,
+.activity-popover, .editor-dropdown-menu, .apple-picker-material) {
+  border-radius: var(--r-card);
+}
+.app-shell :is(.title-actions button:not(.install-theme-button), .mode-switch, .mode-switch button,
+.workspace-switcher, .workspace-switcher button, .preview-tools button, .preview-stage,
+.text-field, .text-area, .editor-dropdown, .current-palette, .import-palette, .theme-actions button,
+.utility-row button, .project-card .utility-row button, .activity-trigger, .wide-action,
+.panel-actions button, .restore-stock, .installation-details, .installation-details summary,
+.safety-note, .color-row, .cutoff-control, .toggle-row, .palette-tools button, .contrast-warnings,
+.contrast-warnings button, .hex-field, .lock-toggle, .dialog-button, .dialog-heading .dialog-icon,
+.install-option, .history-item, .restore-summary, .report-preview, .about-hero, .about-mark,
+.about-links button, .palette-option, .palette-search, .palette-featured-toggle, .fall-suggestion,
+.aep-row, .aep-status, .reapply-banner, .reapply-banner button, .dialog-note, .diagnostic-summary) {
+  border-radius: var(--r-control);
+}
+.segmented { border-radius: var(--r-control); }
+.segmented button, .segmented::before { border-radius: 3px; }
+.toggle-visual { border-radius: 3px; }
+.toggle-visual::after { border-radius: 2px; }
+
+/* Text buttons don't need a decorative icon each; icons stay where they carry meaning. */
+.theme-actions button svg, .import-palette svg, .preview-tools button svg, .dialog-button.ghost svg { display: none; }
+.theme-actions button, .import-palette, .preview-tools button { gap: 0; }
+.import-palette { padding-inline: 12px; }

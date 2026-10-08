@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, ArrowDownToLine, ArrowUpRight, Bug, Check, CheckCircle2, ChevronDown, CircleHelp,
-  Copy, Download, ExternalLink, FileDown, FileSearch, FolderOpen, History, ImageUp, Info, Layers3, Leaf, Lock, LockOpen, Minus, Moon,
+  Copy, Download, ExternalLink, FileCog, FileDown, FileSearch, FolderOpen, History, ImageUp, Info, Layers3, Leaf, Lock, LockOpen, Minus, Moon,
   Palette, Plus, RefreshCw, RotateCcw, ScanSearch, Settings2, Share2, ShieldCheck, Shuffle,
-  Sparkles, Store, Sun, TriangleAlert, Type, Wand2, X,
+  Store, Sun, TriangleAlert, Type, X, Blend,
 } from 'lucide-react'
 import AePreview from './AePreview'
 import LogoMark from './LogoMark'
@@ -123,7 +123,7 @@ const demoState: EditorState = {
   panelStatus: '5 CEP · 1 SIGNED · CEP 12 DEBUG AUTO-ENABLE · 2 SCRIPTUI',
   panelDetails: 'CEP HTML/CSS · every detected panel is themed from a verified original backup\nSigned bundles use Adobe CEP developer mode.\n\nTHEME  Animation Composer  ·  4 HTML/CSS',
   log: '[12:06:42]  Detected one After Effects installation.\n[12:06:43]  Saved immutable original.\n[12:06:44]  Ready · Your theme is safe to edit.\n',
-  version: '1.3.13',
+  version: '2.0.0',
   installations: [{
     path: 'C:\\Program Files\\Adobe\\Adobe After Effects 2026\\Support Files\\dvaui.dll',
     name: 'After Effects 2026',
@@ -409,7 +409,7 @@ function App() {
     </nav>
     <main className="workspace" data-view={workspaceView}>
       <aside className="project-card surface">
-        <div className="section-heading panel-heading"><h2>Your theme</h2><p>A workspace that feels like you.</p></div>
+        <div className="section-heading panel-heading"><h2>Theme</h2><p>Name, base palette and target install.</p></div>
         <label className="field-label" htmlFor="theme-name">Theme name</label>
         <input id="theme-name" className="text-field" value={state.themeName} onChange={e => edit('themeName', e.target.value, 'name')} spellCheck={false} />
         <span className="field-label palette-field-label">Starting palette</span>
@@ -422,6 +422,8 @@ function App() {
         {uiTheme === 'fall' && !fallPicks.includes(activePaletteName) &&
           <button className="fall-suggestion" onClick={() => { setFallFilter(true); openDialog('palettes') }}><Leaf size={15} /> Pair with a fall palette</button>}
         <button className="import-palette" onClick={() => send('import')}><ArrowDownToLine size={16} /> Import theme file</button>
+        <button className="import-palette theme-dll" onClick={() => send('themeDll')}
+          title="Theme a dvaui.dll (and AfterFXLib.dll) copied from another PC. The files you pick are never changed."><FileCog size={16} /> Theme a DLL file</button>
         <div className="theme-actions">
           <button onClick={() => openDialog('share')}><Share2 size={15} /> Share</button>
           <button onClick={exportTheme}><Download size={15} /> Export</button>
@@ -447,7 +449,7 @@ function App() {
 
       <section className="preview-card surface" aria-label="Live theme preview">
         <div className="preview-heading">
-          <div className="panel-heading"><div className="preview-caption"><span className="live-indicator" />Live preview</div><h1 title={state.themeName}>{state.themeName || 'Untitled theme'}</h1><p>Your colors, in context.</p></div>
+          <div className="panel-heading"><div className="preview-caption">{activeInstallation?.name ?? 'After Effects'} preview</div><h1 title={state.themeName}>{state.themeName || 'Untitled theme'}</h1><p>Based on {activePaletteName}</p></div>
           <div className="preview-tools"><button onClick={resetPalette} disabled={state.presetIndex >= state.presets.length} title="Reset the selected built-in palette"><RotateCcw size={15} /> Reset palette</button></div>
         </div>
         {state.replaced?.map(item => <div className="reapply-banner" role="alert" key={item.target}>
@@ -460,12 +462,12 @@ function App() {
           data-highlight={highlight === null ? undefined : roleVars[highlight]}>
           <AePreview themeName={state.themeName} />
         </div>
-        <div className="palette-ribbon" aria-label="Theme color roles">{colorNames.map((name, index) => <button key={name} {...highlightProps(index)} onClick={() => focusColor(name)} aria-label={`Edit ${name}`} title={`${name}: ${paletteColors[index]}`}><span style={{ backgroundColor: paletteColors[index] }} /><small>{colorLabels[name]}</small></button>)}</div>
+        <div className="palette-ribbon" aria-label="Theme color roles">{colorNames.map((name, index) => <button key={name} {...highlightProps(index)} onClick={() => focusColor(name)} aria-label={`Edit ${name}`} title={`${name}: ${paletteColors[index]}`}><span style={{ backgroundColor: paletteColors[index] }} /><small>{colorLabels[name]}</small><code>{paletteColors[index].slice(1)}</code></button>)}</div>
         <div className="preview-footer"><span title={state.importStatus} role="status">{state.importStatus || 'Live preview'}</span><button onClick={() => send('openOutput')}>Generated files <ArrowUpRight size={14} /></button></div>
       </section>
 
       <aside className="inspector-card surface">
-        <div className="section-heading panel-heading"><h2>Customize</h2><p>Make every detail yours.</p></div>
+        <div className="section-heading panel-heading"><h2>Customize</h2><p>Seven color roles, interface text and panels.</p></div>
         <div className="segmented" data-selected={page} role="tablist" aria-label="Customize theme" onKeyDown={event => {
           const tabs = ['colors', 'text', 'panels'] as const
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -482,7 +484,7 @@ function App() {
           onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault() }}
           onDrop={event => { event.preventDefault(); void importImage(event.dataTransfer.files[0]) }}>
           <div className="palette-tools" role="group" aria-label="Palette tools">
-            <button type="button" onClick={() => applyColors(generateFromColor(paletteColors))} title="Match primary: build Background, Panels, Raised and Interface text from your Primary color" aria-label="Match surfaces to primary"><Wand2 size={15} /> Match</button>
+            <button type="button" onClick={() => applyColors(generateFromColor(paletteColors))} title="Match primary: build Background, Panels, Raised and Interface text from your Primary color" aria-label="Match surfaces to primary"><Blend size={15} /> Match</button>
             <button type="button" onClick={() => applyColors(shuffle(paletteColors, locked))} title="Shuffle: new colors for every unlocked role" aria-label="Shuffle unlocked colors"><Shuffle size={15} /> Shuffle</button>
             <button type="button" onClick={() => imageInput.current?.click()} title="From image: take a palette from an image. You can also drop an image here." aria-label="Palette from image"><ImageUp size={15} /> Image</button>
             <input ref={imageInput} type="file" accept="image/*" hidden onChange={event => { void importImage(event.target.files?.[0]); event.target.value = '' }} />
@@ -520,7 +522,7 @@ function App() {
           <div className="cutoff-control"><div><label htmlFor="cutoff">Text contrast cutoff</label><strong>{(state.cutoff / 100).toFixed(2)}</strong></div><input id="cutoff" type="range" min="20" max="80" value={state.cutoff} onChange={e => edit('cutoff', Number(e.target.value), 'cutoff')} /><p>Adjust how the patcher balances foreground contrast.</p></div>
         </div>}
         {page === 'text' && <div className="inspector-content" role="tabpanel" id="customize-panel-text" aria-labelledby="customize-tab-text"><p className="content-intro">Replace exact interface strings. Each new value must be the same length or shorter.</p><label className="field-label" htmlFor="replacements">One replacement per line</label><textarea id="replacements" className="text-area" value={state.textReplacements} onChange={e => edit('textReplacements', e.target.value, 'text')} placeholder={'AdobeClean-Regular => SFProDisplay-Regular\n# Lines beginning with # are ignored'} spellCheck={false} /><p className="field-help">Format: original text =&gt; new text</p></div>}
-        {page === 'panels' && <div className="inspector-content" role="tabpanel" id="customize-panel-panels" aria-labelledby="customize-tab-panels"><p className="content-intro">Extend your palette to compatible CEP panels and choose a safe installed font.</p><label className="field-label" htmlFor="font">DVAUI font</label><Dropdown id="font" label="DVAUI font" value={state.font} onChange={value => edit('font', value, 'font')} options={state.fonts.map(font => ({ value: font, label: font }))} /><label className="toggle-row"><span><strong>Theme extension panels</strong><small>Apply the palette when installing a theme</small></span><input type="checkbox" checked={state.themePanels} onChange={e => edit('themePanels', e.target.checked, 'themePanels')} /><span className="toggle-visual" /></label><div className="panel-actions"><button onClick={() => send('scanPanels')}><RefreshCw size={15} /> Rescan</button><button onClick={() => send('applyPanels')}><Sparkles size={15} /> Apply now</button></div><div className="panel-report"><strong>{state.panelStatus}</strong><pre>{state.panelDetails}</pre></div></div>}
+        {page === 'panels' && <div className="inspector-content" role="tabpanel" id="customize-panel-panels" aria-labelledby="customize-tab-panels"><p className="content-intro">Extend your palette to compatible CEP panels and choose a safe installed font.</p><label className="field-label" htmlFor="font">DVAUI font</label><Dropdown id="font" label="DVAUI font" value={state.font} onChange={value => edit('font', value, 'font')} options={state.fonts.map(font => ({ value: font, label: font }))} /><label className="toggle-row"><span><strong>Theme extension panels</strong><small>Apply the palette when installing a theme</small></span><input type="checkbox" checked={state.themePanels} onChange={e => edit('themePanels', e.target.checked, 'themePanels')} /><span className="toggle-visual" /></label><div className="panel-actions"><button onClick={() => send('scanPanels')}><RefreshCw size={15} /> Rescan</button><button onClick={() => send('applyPanels')}>Apply now</button></div><div className="panel-report"><strong>{state.panelStatus}</strong><pre>{state.panelDetails}</pre></div></div>}
         <div className="activity-anchor">
           <button className="activity-trigger" onClick={() => { setActivityOpen(!activityOpen); setActivityPage(0) }} aria-expanded={activityOpen}><span><Activity className="activity-wave" size={17} aria-hidden="true" /> Activity log</span><ChevronDown size={16} className={activityOpen ? '' : 'rotated'} /></button>
           <AnimatePresence initial={false}>{activityOpen && <motion.div className="activity-popover" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: .16 }}>
@@ -533,7 +535,7 @@ function App() {
     </main>
     </> : <AepDowngrader state={state.aep} send={send} />}
 
-    {dialog === 'palettes' && <Modal title="Find your starting palette" description="A new atmosphere for your After Effects workspace. Choose a palette, then make it yours." icon={<Palette size={20} />} onClose={() => { setDialog(null); setFallFilter(false) }} wide>
+    {dialog === 'palettes' && <Modal title="Palettes" description={`${state.presets.length} built-in palettes. Pick a base; every color stays editable.`} icon={<Palette size={20} />} onClose={() => { setDialog(null); setFallFilter(false) }} wide>
       <PaletteBrowser names={state.presets} previews={state.presetPreviews ?? []} selected={state.presetIndex} onSelect={selectPreset}
         featured={uiTheme === 'fall' ? { label: 'Fall picks', names: fallPicks } : undefined} featuredOnly={fallFilter} onFeaturedOnlyChange={setFallFilter} />
       <div className="dialog-actions palette-dialog-actions"><button className="dialog-button ghost" onClick={() => { setDialog(null); send('import') }}><ArrowDownToLine size={16} /> Import theme file</button><span className="dialog-action-spacer" /><button className="dialog-button ghost" onClick={() => setDialog(null)}>Done</button></div>
@@ -584,7 +586,7 @@ function App() {
       </div>)}</div> : <div className="dialog-empty"><History size={26} /><strong>No installs yet</strong><p>Themes appear here after you install them.</p></div>}
     </Modal>}
 
-    {dialog === 'gallery' && <Modal title="Community gallery" description="Themes shared by AfterThemed users. Pick one to preview it, then make it yours." icon={<Store size={20} />} onClose={() => setDialog(null)} wide>
+    {dialog === 'gallery' && <Modal title="Community gallery" description="Themes shared by AfterThemed users. Pick one to load it into the editor." icon={<Store size={20} />} onClose={() => setDialog(null)} wide>
       {!window.chrome?.webview ? <div className="dialog-empty"><Store size={26} /><strong>Gallery unavailable here</strong><p>{desktopOnly}</p></div>
         : state.gallery?.status === 'error' ? <div className="dialog-empty"><TriangleAlert size={26} /><strong>Gallery unavailable</strong><p>{state.gallery.error}</p><button className="dialog-button ghost" onClick={() => send('galleryLoad')}><RefreshCw size={15} /> Try again</button></div>
         : state.gallery?.status !== 'ready' ? <div className="dialog-loading" role="status"><span className="loading-ring" /><strong>Loading community themes…</strong></div>

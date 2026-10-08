@@ -121,6 +121,7 @@ internal static class Program
         Run("AEP downgrade to 24.x changes only the version header", AepDowngradeTo24, failures);
         Run("AEP downgrade to 23.x removes Shadow Color and keeps everything else", AepDowngradeTo23, failures);
         Run("AEP downgrade never overwrites and rejects unsuitable input", AepDowngradeRefusals, failures);
+        Run("one theme installs into five After Effects versions as one rollback-safe set", MultiVersionFileSet, failures);
         Run("AEP downgrade to 22.x and 18.x converts layer records and falls back to 18.x", AepDowngradeOlderFormats, failures);
 
         foreach (var failure in failures) Console.Error.WriteLine($"FAIL: {failure}");
@@ -343,6 +344,53 @@ internal static class Program
         {
             DeleteTestDirectory(root);
         }
+    }
+
+    private static void MultiVersionFileSet()
+    {
+        var root = NewTempDirectory("multi-version-set");
+        try
+        {
+            var backups = Path.Combine(root, "Backups");
+            var files = new List<ThemeFileInstall>();
+            foreach (var release in new[] { "2025", "2023", "2021", "2020", "CC 2019" })
+            {
+                var folder = Path.Combine(root, $"Adobe After Effects {release}", "Support Files");
+                Directory.CreateDirectory(folder);
+                foreach (var name in new[] { "AfterFXLib.dll", "dvaui.dll" })
+                {
+                    var target = Path.Combine(folder, name);
+                    var input = Path.Combine(folder, name + ".themed");
+                    File.WriteAllText(target, $"original {release} {name}");
+                    File.WriteAllText(input, $"themed {release} {name}");
+                    files.Add(new ThemeFileInstall(input, target));
+                }
+            }
+
+            var installAll = ThemeFileSetInstaller.Install(new ThemeFileSetManifest(backups, files), requireAfterEffectsClosed: false,
+                file => NativeDllInstaller.Install(file.InputPath, file.TargetPath, backups, requireAfterEffectsClosed: false));
+            Require(installAll.Succeeded && installAll.Files.Count == 10, $"ten files were not installed: {installAll.Message}");
+            Require(files.All(file => File.ReadAllText(file.TargetPath).StartsWith("themed", StringComparison.Ordinal)),
+                "a version was left unthemed");
+
+            foreach (var file in files) File.WriteAllText(file.TargetPath, File.ReadAllText(file.TargetPath).Replace("themed", "original"));
+            var call = 0;
+            var failed = ThemeFileSetInstaller.Install(new ThemeFileSetManifest(backups, files), requireAfterEffectsClosed: false, file =>
+                ++call == 7
+                    ? new NativeInstallReport(2, "simulated install", "simulated failure in the fourth version")
+                    : NativeDllInstaller.Install(file.InputPath, file.TargetPath, backups, requireAfterEffectsClosed: false));
+            Require(!failed.Succeeded && failed.Files.Take(6).All(result => result.Rollback?.Succeeded == true),
+                "a failure in one version did not roll back the versions installed before it");
+            Require(files.All(file => File.ReadAllText(file.TargetPath).StartsWith("original", StringComparison.Ordinal)),
+                "a failed multi-version install left a version themed");
+
+            var tooMany = Enumerable.Range(0, ThemeFileSetInstaller.MaxFiles + 1)
+                .Select(i => new ThemeFileInstall(files[0].InputPath, Path.Combine(root, $"t{i}.dll"))).ToList();
+            Require(Capture(() => ThemeFileSetInstaller.Install(new ThemeFileSetManifest(backups, tooMany), requireAfterEffectsClosed: false,
+                    _ => throw new InvalidOperationException("must not install"))) is InvalidDataException,
+                $"a set larger than {ThemeFileSetInstaller.MaxFiles} files was accepted");
+        }
+        finally { DeleteTestDirectory(root); }
     }
 
     private static void ThemeFileSetRollsBackFirstFileWhenSecondFails()

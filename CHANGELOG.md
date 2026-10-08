@@ -2,6 +2,21 @@
 
 All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
+## 2.0.0 - 2026-10-08
+
+### Interface
+
+- Restyle the editor with a distinct identity in the existing blue and ice colors: Familjen Grotesk headings, the native Segoe UI Variable for controls, and IBM Plex Mono for hex codes, contrast ratios, paths, and logs.
+- Give shape a hierarchy: **Install theme** is the only pill; panels and controls use small, square-shouldered corners.
+- Show the seven color roles as one continuous specimen bar with each role's hex code underneath.
+- Replace slogans with plain descriptions, show the target After Effects version above the preview, and name the palette a theme is based on.
+- Remove decorative sparkle icons, the pulsing "Live" dot, and icons on plain text buttons.
+
+### Themes and installation
+
+- Add **Theme a DLL file**: theme a `dvaui.dll` (and optionally `AfterFXLib.dll`) copied from another PC into a new folder beside it, with install instructions. The chosen files are never changed, and files that fail the Adobe signature check are themed only after a warning.
+- **Install to every detected version** now generates each version from its own preserved original and installs all of them with a single Windows permission prompt. A version that cannot be themed is skipped and reported; a failed install rolls back the whole set.
+
 ## 1.3.13 - 2026-10-08
 
 ### AEP Downgrader

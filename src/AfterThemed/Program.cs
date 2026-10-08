@@ -69,7 +69,8 @@ static class Program
             var installed = ThemeFileSetInstaller.Run(args[1], args[2]);
             if (installed != 0) return installed;
             var manifest = ThemeFileSetStore.ReadManifest(args[1]);
-            var nativeTarget = manifest.Files.Single(file =>
+            // Panels are shared by every version; they are themed once, against the first installation listed.
+            var nativeTarget = manifest.Files.First(file =>
                 string.Equals(Path.GetFileName(file.TargetPath), "dvaui.dll", StringComparison.OrdinalIgnoreCase));
             return PanelThemeManager.ApplyFromConfiguration(
                 nativeTarget.TargetPath, args[3], args[4], args[5]);

@@ -31,6 +31,12 @@
   <img src="docs/screenshots/editor.png" width="100%" alt="The AfterThemed editor: your theme, a live After Effects preview, and color customization">
 </p>
 
+## New in 2.0
+
+- **A new look.** The editor keeps its blue and ice colors with its own typography: Familjen Grotesk headings, native Windows text for controls, and IBM Plex Mono for hex codes, contrast ratios, and paths. Only **Install theme** is a pill, and the seven color roles read as one specimen bar with their hex codes.
+- **Theme a DLL file.** Theme a `dvaui.dll` (and `AfterFXLib.dll`) copied from another PC. The themed copies go in a new folder with install instructions, and the files you pick are never changed.
+- **One prompt for every version.** Installing to every detected After Effects version themes each from its own preserved original and installs them together with a single Windows permission prompt. Anything that fails is rolled back.
+
 ## New in 1.3.13
 
 | Themes | AEP Downgrader |
@@ -135,7 +141,7 @@ If no verifiable original survives, repair that exact After Effects version thro
 
 ## Install
 
-1. Download `AfterThemed-Setup-1.3.13.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
+1. Download `AfterThemed-Setup-2.0.0.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
 2. Review and accept the proprietary EULA in Setup. Choose **Install for me only** (no administrator rights) or **Install for all users**, and pick the shortcuts and file associations you want.
 3. Launch AfterThemed and confirm the detected After Effects installation.
 4. Build a palette or import an existing theme.
@@ -191,7 +197,7 @@ The **Build and release** workflow publishes stable releases when a matching `vX
 To ship a release:
 
 1. Update the project's `<Version>` and `CHANGELOG.md`, commit the release changes, and merge them to `main`.
-2. From that commit, create and push a matching tag (for example, `git tag v1.3.13` followed by `git push origin v1.3.13`). Use a new version for every release.
+2. From that commit, create and push a matching tag (for example, `git tag v2.0.0` followed by `git push origin v2.0.0`). Use a new version for every release.
 3. The workflow builds and tests the Windows x64 installer, generates `SHA256SUMS.txt`, and uploads the installer, checksum, EULA, and license to a draft GitHub Release. It publishes only after all assets are uploaded. GitHub generates the release notes from repository changes.
 
 The publishing job uses the built-in `GITHUB_TOKEN` with `contents: write`; no personal access token is needed. Repository or organization policies must permit that permission. A failed draft upload can be retried by rerunning the workflow. Already-published releases are protected from replacement; publish a new version instead. The release job can also be rerun through a manual workflow dispatch targeting a matching tag. Installers remain unsigned unless code signing is added separately.

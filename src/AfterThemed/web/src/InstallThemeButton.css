@@ -12,7 +12,7 @@
   background: var(--paper);
   color: var(--ink);
   box-shadow: inset 0 0 0 1px #ffffff24, inset 0 1px 0 #ffffff38, 0 1px 2px #0002;
-  font-family: Inter, sans-serif;
+  font-family: var(--font-ui), sans-serif;
   font-size: 12px;
   font-weight: 400;
   letter-spacing: normal;
@@ -42,7 +42,6 @@
 
 }
 .install-button-content { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-.install-button-star { width: 14px; height: 14px; flex: none; }
 .pixel-install-button .install-theme-label { color: inherit; font: inherit; letter-spacing: inherit; }
 /* Hover: a scanline sweeps left to right, each pixel flashes a theme color, then settles into a solid
    blue dither fill and the label turns ice-white. Busy: the sweep loops over the filled pill.

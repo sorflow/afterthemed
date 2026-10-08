@@ -82,6 +82,8 @@ internal static class ThemeFileSetStore
 
 internal static class ThemeFileSetInstaller
 {
+    internal const int MaxFiles = 32;
+
     internal static int Run(string manifestPath, string reportPath, bool requireAfterEffectsClosed = true)
     {
         if (!NativeInstallReportStore.CanWrite(reportPath)) return 2;
@@ -170,8 +172,9 @@ internal static class ThemeFileSetInstaller
     {
         if (string.IsNullOrWhiteSpace(manifest.BackupDirectory))
             throw new InvalidDataException("The theme file-set backup directory is missing.");
-        if (manifest.Files is null || manifest.Files.Count is < 1 or > 4)
-            throw new InvalidDataException("A theme file set must contain between one and four files.");
+        // Two files (dvaui.dll and its AfterFXLib.dll companion) for each installation in a multi-version install.
+        if (manifest.Files is null || manifest.Files.Count is < 1 or > MaxFiles)
+            throw new InvalidDataException($"A theme file set must contain between one and {MaxFiles} files.");
 
         var files = manifest.Files.Select(file => new ThemeFileInstall(
             Path.GetFullPath(file.InputPath), Path.GetFullPath(file.TargetPath))).ToArray();

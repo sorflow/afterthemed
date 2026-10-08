@@ -509,6 +509,20 @@ internal static class OriginalDllStore
         return File.Exists(host) ? Sha256(host) : null;
     }
 
+    /// <summary>True when the file still carries a valid Adobe Authenticode signature (an untouched original).</summary>
+    internal static bool IsAdobeOriginal(string path)
+    {
+        try
+        {
+            EnsureAdobeSigned(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
     private static AdobeSignature EnsureAdobeSigned(string path)
     {
         var fileInfo = new WinTrustFileInfo

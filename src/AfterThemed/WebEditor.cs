@@ -221,6 +221,7 @@ public partial class Form1
                     File.WriteAllText(InstallAllFile, installAll ? "true" : "false");
                     break;
                 case "galleryLoad": LoadGallery(); break;
+                case "themeDll": Try(ThemeDllFiles); break;
                 case "galleryUse":
                     if (int.TryParse(value, out var galleryIndex) && galleryIndex >= 0 && galleryIndex < gallery.Count)
                         // Community text replacements are not applied: they could rewrite interface strings.
@@ -319,6 +320,62 @@ public partial class Form1
         {
             AppDiagnostics.Write("Web editor state update skipped: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Themes standalone DLL files (for example a dvaui.dll copied from another PC's After Effects) into a new
+    /// folder beside them. Modified files whose Adobe signature no longer validates are allowed after a warning;
+    /// the selected files are never changed, so they remain the backup for wherever the themed copies go.
+    /// </summary>
+    private void ThemeDllFiles()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Choose dvaui.dll, and AfterFXLib.dll if you have it, to theme",
+            Filter = "After Effects interface DLLs|*.dll",
+            Multiselect = true
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        static bool IsCompanion(string path) => Path.GetFileName(path).StartsWith("AfterFXLib", StringComparison.OrdinalIgnoreCase);
+        var files = dialog.FileNames;
+        if (files.Count(path => !IsCompanion(path)) > 1 || files.Count(IsCompanion) > 1)
+            throw new InvalidOperationException("Choose one dvaui.dll and, optionally, one AfterFXLib.dll from the same After Effects version.");
+
+        var unverified = files.Where(path => !OriginalDllStore.IsAdobeOriginal(path)).Select(Path.GetFileName).ToList();
+        if (unverified.Count > 0 && MessageBox.Show(this,
+                $"{string.Join(" and ", unverified)} {(unverified.Count == 1 ? "is not" : "are not")} an untouched Adobe original: " +
+                "the Adobe signature check failed, so the file was probably modified or themed before.\n\n" +
+                "AfterThemed can theme it, but cannot restore Adobe's original for it. The file you chose is not changed; " +
+                "keep it as the backup for the After Effects you put the themed copy into.\n\nTheme it anyway?",
+                "Unverified DLL", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            return;
+
+        var parent = Path.GetDirectoryName(Path.GetFullPath(files[0]))!;
+        var folder = Path.Combine(parent, $"AfterThemed - {SafeName()}");
+        for (var n = 2; Directory.Exists(folder); n++) folder = Path.Combine(parent, $"AfterThemed - {SafeName()} {n}");
+        Directory.CreateDirectory(folder);
+        var settings = ReadSettings();
+        foreach (var file in files.OrderBy(IsCompanion))
+        {
+            var output = Path.Combine(folder, IsCompanion(file) ? "AfterFXLib.dll" : "dvaui.dll");
+            var hash = IsCompanion(file)
+                ? LegacyAeThemePatcher.Generate(file, output, settings)
+                : ThemePatcher.Generate(file, output, settings, ReadFontFamily(), ReadTextReplacements());
+            Log($"Themed {Path.GetFileName(file)} · {output}\r\nSHA-256: {hash}");
+        }
+        File.WriteAllText(Path.Combine(folder, "HOW TO INSTALL.txt"), string.Join(Environment.NewLine,
+            $"AfterThemed theme \"{themeName.Text}\"",
+            "",
+            "1. On the PC where these files go, close After Effects.",
+            "2. Open that After Effects version's Support Files folder, for example",
+            @"   C:\Program Files\Adobe\Adobe After Effects 2021\Support Files",
+            "3. Back up its dvaui.dll" + (files.Any(IsCompanion) ? " and AfterFXLib.dll" : string.Empty) + " (copy them somewhere safe).",
+            "4. Copy the files from this folder over them (Windows will ask for administrator permission).",
+            "5. Open After Effects. To undo, copy the backups back.",
+            "",
+            "Only use these files with the same After Effects build the originals came from.",
+            ""));
+        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
     }
 
     /// <summary>Opens the file Explorer launched AfterThemed with, once the editor is listening.</summary>

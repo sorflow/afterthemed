@@ -984,6 +984,11 @@ public partial class Form1 : Form
             if (Process.GetProcessesByName("AfterFX").Length > 0) throw new InvalidOperationException("Close After Effects before installing.");
             try
             {
+                if (targets.Count > 1)
+                {
+                    InstallEverywhere(targets, document, historyId);
+                    return;
+                }
                 for (var i = 0; i < targets.Count; i++)
                 {
                     target.Text = targets[i];
@@ -1063,16 +1068,74 @@ public partial class Form1 : Form
         try { File.Delete(nativeInstallReportFile); } catch { /* Keep a harmless success report if cleanup is blocked. */ }
     }
 
+    /// <summary>
+    /// One theme into every listed After Effects version: each version is generated from its own preserved
+    /// original, a version that cannot be themed is skipped and reported, and every remaining file is
+    /// installed by a single elevated process (one Windows prompt). A failure rolls back the whole set.
+    /// </summary>
+    private void InstallEverywhere(IReadOnlyList<string> targets, ThemeDocument document, string historyId)
+    {
+        string Name(string path) => AfterEffectsCatalog.Describe(path)?.DisplayName ?? path;
+        var files = new List<ThemeFileInstall>();
+        var themed = new List<string>();
+        var skipped = new List<string>();
+        for (var i = 0; i < targets.Count; i++)
+        {
+            target.Text = targets[i];
+            SetWebInstallStatus("preparing", $"Preparing {Name(targets[i])} ({i + 1} of {targets.Count})…");
+            try
+            {
+                var output = GenerateTo($"dvaui.install-ready-{i + 1}.dll");
+                if (output.Companion is { } companion) files.Add(new ThemeFileInstall(companion.InputPath, companion.TargetPath));
+                files.Add(new ThemeFileInstall(output.NativePath, targets[i]));
+                themed.Add(targets[i]);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException
+                                           or NotSupportedException or UnauthorizedAccessException)
+            {
+                skipped.Add($"{Name(targets[i])} ({ex.Message})");
+                Log($"Skipped {Name(targets[i])} · {ex.Message}");
+            }
+        }
+        if (themed.Count == 0)
+            throw new InvalidOperationException("No After Effects version could be themed. " + string.Join(" ", skipped));
+
+        target.Text = themed[0];
+        SetWebInstallStatus("installing",
+            $"Installing into {themed.Count} After Effects versions. Complete the Windows permission prompt.");
+        if (themePanels.Checked)
+        {
+            PanelThemeManager.SaveConfiguration(PanelThemeFile, ReadSettings(), themeName.Text, ReadFontFamily());
+            InstallFileSetElevated(files, "Installation", PanelInstallAction.Apply, PanelThemeFile);
+        }
+        else InstallFileSetElevated(files, "Installation", PanelInstallAction.None, null);
+
+        foreach (var path in themed)
+        {
+            ThemeHistory.RecordInstall(HistoryFile, historyId, document, path, OriginalDllStore.Sha256(path));
+            replacedThemes.RemoveAll(item => string.Equals(item.Target, path, StringComparison.OrdinalIgnoreCase));
+            Log($"Installed and verified · {Name(path)}");
+        }
+        SetWebInstallStatus("installed", $"Installed and verified in {string.Join(", ", themed.Select(Name))}." +
+            (skipped.Count > 0 ? $" Skipped: {string.Join("; ", skipped)}." : " Open After Effects to see your theme."));
+    }
+
     private void InstallThemeSetElevated(string nativeInput, string operation, PanelInstallAction panelAction,
         string? panelConfiguration, LegacyAeThemeCompanion? companion)
+    {
+        var files = new List<ThemeFileInstall>();
+        if (companion is not null) files.Add(new ThemeFileInstall(companion.InputPath, companion.TargetPath));
+        files.Add(new ThemeFileInstall(nativeInput, target.Text.Trim()));
+        InstallFileSetElevated(files, operation, panelAction, panelConfiguration);
+    }
+
+    private void InstallFileSetElevated(IReadOnlyList<ThemeFileInstall> files, string operation,
+        PanelInstallAction panelAction, string? panelConfiguration)
     {
         Directory.CreateDirectory(Reports);
         var id = $"{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
         var manifestPath = Path.Combine(Reports, $"theme-file-set-{id}.json");
         var reportPath = Path.Combine(Reports, $"theme-file-set-result-{id}.json");
-        var files = new List<ThemeFileInstall>();
-        if (companion is not null) files.Add(new ThemeFileInstall(companion.InputPath, companion.TargetPath));
-        files.Add(new ThemeFileInstall(nativeInput, target.Text.Trim()));
         var manifest = new ThemeFileSetManifest(Backups, files,
             RestoreMissingTargets: operation == "Adobe original restore");
         ThemeFileSetStore.WriteManifest(manifestPath, manifest);
