@@ -129,7 +129,7 @@ const demoState: EditorState = {
   panelStatus: '5 CEP · 1 SIGNED · CEP 12 DEBUG AUTO-ENABLE · 2 SCRIPTUI',
   panelDetails: 'CEP HTML/CSS · every detected panel is themed from a verified original backup\nSigned bundles use Adobe CEP developer mode.\n\nTHEME  Animation Composer  ·  4 HTML/CSS',
   log: '[12:06:42]  Detected one After Effects installation.\n[12:06:43]  Saved immutable original.\n[12:06:44]  Ready · Your theme is safe to edit.\n',
-  version: '2.0.0',
+  version: '2.1.0',
   installations: [{
     path: 'C:\\Program Files\\Adobe\\Adobe After Effects 2026\\Support Files\\dvaui.dll',
     name: 'After Effects 2026',
