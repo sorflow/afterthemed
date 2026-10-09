@@ -15,6 +15,9 @@ public partial class Form1
         public string Detail = string.Empty;
         public string Output = string.Empty;
         public IReadOnlyList<string> Changes = [];
+        // Dry-run changes for PreviewTarget, so the inspector shows real edits before anything is written.
+        public IReadOnlyList<string>? Preview;
+        public int PreviewTarget;
     }
 
     private readonly List<AepItem> aepItems = [];
@@ -44,6 +47,28 @@ public partial class Form1
             aepItems.Add(item);
         }
         RefreshAepStatuses();
+        PreviewAepItems();
+    }
+
+    /// <summary>Runs the conversion in memory for each ready project whose preview is missing or for another target.</summary>
+    private async void PreviewAepItems()
+    {
+        foreach (var item in aepItems.Where(item => item.Status == "ready" && (item.Preview is null || item.PreviewTarget != aepTarget)).ToList())
+        {
+            var target = aepTarget;
+            IReadOnlyList<string> changes;
+            try { changes = (await Task.Run(() => AepDowngrader.Preview(item.Path, target))).Changes; }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+            {
+                changes = [$"Could not inspect: {ex.Message}"];
+            }
+            // The target may have changed while this ran; a newer pass computes that target's preview.
+            if (target != aepTarget) continue;
+            item.Preview = changes;
+            item.PreviewTarget = target;
+            if (IsDisposed || Disposing) return;
+            PublishWebState();
+        }
     }
 
     private void RefreshAepStatuses()
@@ -105,6 +130,7 @@ public partial class Form1
                 {
                     aepTarget = target;
                     RefreshAepStatuses();
+                    PreviewAepItems();
                 }
                 break;
             case "aepRemove": if (!aepBusy) aepItems.RemoveAll(item => item.Id == value); break;
@@ -132,7 +158,11 @@ public partial class Form1
             status = item.Status,
             detail = item.Detail,
             output = item.Output.Length > 0 ? Path.GetFileName(item.Output) : string.Empty,
-            changes = item.Changes
+            changes = item.Changes,
+            path = item.Path,
+            plannedOutput = item.Output.Length > 0 ? item.Output
+                : item.Status == "ready" ? AepDowngrader.OutputPathFor(item.Path, aepTarget) : string.Empty,
+            preview = item.Preview is not null && item.PreviewTarget == aepTarget ? item.Preview : null
         }).ToArray()
     };
 }

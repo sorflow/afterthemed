@@ -255,7 +255,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 .palette-dialog-actions { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--ui-ring); }
 
 @media (min-width: 1101px) and (max-width: 1280px) {
-  .workspace { grid-template-columns: 192px minmax(0, 1fr) 246px; gap: 16px; padding-inline: 16px; }
+  .workspace { grid-template-columns: 212px minmax(0, 1fr) 260px; gap: 16px; padding-inline: 16px; }
   .workspace > .preview-card { padding-inline: 16px; }
   .preview-tools { width: 100%; }
   .preview-heading { gap: 8px; }
@@ -320,6 +320,6 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   .palette-option-name { font-size: 10px; }
   .palette-search > span { display: none; }
 }
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
   .palette-ribbon button > span, .installation-details summary > svg { transition: none; }
-}
+ } }

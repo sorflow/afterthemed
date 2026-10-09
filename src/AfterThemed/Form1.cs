@@ -119,6 +119,7 @@ public partial class Form1 : Form
         if (executableIcon is not null) Icon = executableIcon;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BuildUi();
+        sessionSaveTimer.Tick += (_, _) => { sessionSaveTimer.Stop(); SaveSession(); };
         Try(LoadDefaults);
     }
 
@@ -774,6 +775,7 @@ public partial class Form1 : Form
 
         var savedTarget = File.Exists(LastTargetFile) ? File.ReadAllText(LastTargetFile).Trim() : string.Empty;
         var installations = AfterEffectsCatalog.Discover();
+        knownInstalls = installations;
         Log(installations.Count == 0
             ? "No After Effects installation was detected on this PC."
             : $"Detected {installations.Count} After Effects installation(s): " +
@@ -852,6 +854,7 @@ public partial class Form1 : Form
     private void ApplySelectedInstallation(string chosen)
     {
         target.Text = chosen;
+        knownInstalls = AfterEffectsCatalog.Discover();
         Try(() =>
         {
             var original = EnsureOriginalSnapshot();
@@ -974,7 +977,7 @@ public partial class Form1 : Form
         if (onlyTargets is null && installAll)
             targets.AddRange(AfterEffectsCatalog.Discover().Select(item => item.DllPath)
                 .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(primary), StringComparison.OrdinalIgnoreCase)));
-        SetWebInstallStatus("preparing", "Preparing theme files…");
+        SetWebInstallStatus("preparing", "Preparing theme files…", "original");
         await Task.Delay(50);
         if (IsDisposed || Disposing) return;
         var document = CurrentThemeDocument();
@@ -995,8 +998,11 @@ public partial class Form1 : Form
                     var step = targets.Count > 1
                         ? $" into {AfterEffectsCatalog.Describe(targets[i])?.DisplayName ?? "After Effects"} ({i + 1} of {targets.Count})"
                         : string.Empty;
+                    SetWebInstallStatus("preparing", $"Preserving the Adobe original{step}…", "original");
+                    EnsureOriginalSnapshot();
+                    SetWebInstallStatus("preparing", $"Generating the theme{step}…", "generate");
                     var output = GenerateTo("dvaui.install-ready.dll");
-                    SetWebInstallStatus("installing", $"Installing theme{step}. Complete the Windows permission prompt if shown.");
+                    SetWebInstallStatus("installing", $"Installing and verifying{step}. Complete the Windows permission prompt if shown.", "install");
                     // ponytail: CEP panels are applied with the first target only; they live outside the AE folders.
                     if (i == 0 && themePanels.Checked)
                     {
@@ -1019,7 +1025,7 @@ public partial class Form1 : Form
             }
             SetWebInstallStatus("installed", targets.Count > 1
                 ? $"Theme installed and verified in {targets.Count} After Effects versions."
-                : "Theme installed and verified. Open After Effects to see your theme.");
+                : "Theme installed and verified. Open After Effects to see your theme.", "done");
         }, reportOnFailure: true, onFailure: ex =>
         {
             var cancelled = ex is OperationCanceledException ||
@@ -1082,9 +1088,11 @@ public partial class Form1 : Form
         for (var i = 0; i < targets.Count; i++)
         {
             target.Text = targets[i];
-            SetWebInstallStatus("preparing", $"Preparing {Name(targets[i])} ({i + 1} of {targets.Count})…");
             try
             {
+                SetWebInstallStatus("preparing", $"Preserving the Adobe original for {Name(targets[i])} ({i + 1} of {targets.Count})…", "original");
+                EnsureOriginalSnapshot();
+                SetWebInstallStatus("preparing", $"Generating the theme for {Name(targets[i])} ({i + 1} of {targets.Count})…", "generate");
                 var output = GenerateTo($"dvaui.install-ready-{i + 1}.dll");
                 if (output.Companion is { } companion) files.Add(new ThemeFileInstall(companion.InputPath, companion.TargetPath));
                 files.Add(new ThemeFileInstall(output.NativePath, targets[i]));
@@ -1102,7 +1110,7 @@ public partial class Form1 : Form
 
         target.Text = themed[0];
         SetWebInstallStatus("installing",
-            $"Installing into {themed.Count} After Effects versions. Complete the Windows permission prompt.");
+            $"Installing into {themed.Count} After Effects versions. Complete the Windows permission prompt.", "install");
         if (themePanels.Checked)
         {
             PanelThemeManager.SaveConfiguration(PanelThemeFile, ReadSettings(), themeName.Text, ReadFontFamily());
@@ -1117,7 +1125,7 @@ public partial class Form1 : Form
             Log($"Installed and verified · {Name(path)}");
         }
         SetWebInstallStatus("installed", $"Installed and verified in {string.Join(", ", themed.Select(Name))}." +
-            (skipped.Count > 0 ? $" Skipped: {string.Join("; ", skipped)}." : " Open After Effects to see your theme."));
+            (skipped.Count > 0 ? $" Skipped: {string.Join("; ", skipped)}." : " Open After Effects to see your theme."), "done");
     }
 
     private void InstallThemeSetElevated(string nativeInput, string operation, PanelInstallAction panelAction,

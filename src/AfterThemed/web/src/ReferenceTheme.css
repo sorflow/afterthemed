@@ -518,9 +518,9 @@ body, .app-shell, .titlebar { background-color: var(--ui-shell); color: var(--ui
 @keyframes dialog-backdrop-in { from { opacity: 0; } }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
 
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
   button svg, .activity-trigger .activity-wave { transition: none; }
-}
+ } }
 @keyframes loading-spin { to { transform: rotate(360deg); } }
 
 :root[data-ui-theme="light"] .workspace,
@@ -707,9 +707,9 @@ body, .app-shell, .titlebar { background-color: var(--ui-shell); color: var(--ui
 .apple-picker-pointer { position:absolute; z-index:2; left:50%; bottom:-13px; width:56px; height:13px; background:var(--apple-picker-surface-solid); mask-repeat:no-repeat; mask-size:56px 13px; translate:-50% 0; pointer-events:none; }
 @keyframes apple-picker-in { from { opacity:0; transform:scale(calc(var(--picker-scale) * .97)) translateY(-4px); filter:blur(4px); } }
 
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
   .apple-color-picker { animation-name: apple-picker-fade; }
-}
+ } }
 @media (prefers-reduced-transparency: reduce) {
   .apple-picker-material { background:var(--apple-picker-surface-solid); backdrop-filter:none; }
 }
@@ -743,4 +743,4 @@ body, .app-shell, .titlebar { background-color: var(--ui-shell); color: var(--ui
 .editor-dropdown-option > svg { flex:none; color:var(--ui-accent); }
 .editor-dropdown-option.active { background:var(--ui-raised-hover); box-shadow:inset 0 0 0 1px var(--ui-border); }
 .editor-dropdown-option[aria-selected=true] { color:var(--ui-accent); font-weight:600; }
-@media (prefers-reduced-motion:reduce) { .editor-dropdown > svg { transition:none; } }
+@media (prefers-reduced-motion:reduce) { :where(:root:not([data-motion="on"])) {  .editor-dropdown > svg { transition:none; }  } }

@@ -36,7 +36,7 @@
 :root[data-ui-palette="fall"] .live-indicator { background: var(--gold); box-shadow: 0 0 0 3px rgb(245 199 97 / .2); }
 :root[data-ui-palette="fall"] :focus-visible { outline-color: var(--mustard) !important; }
 :root[data-ui-palette="fall"] :is(.titlebar, .preview-card, .workspace-switcher) :focus-visible { outline-color: var(--gold) !important; }
-:root[data-ui-palette="fall"] .aep-status.done { background: var(--gold); border-color: var(--mustard); color: var(--ink-deep); }
+:root[data-ui-palette="fall"] .aep-status.done::before { color: var(--mustard); }
 :root[data-ui-palette="fall"] .palette-option[aria-pressed="true"] { border-color: var(--mustard); }
 
 /* Paper grain: a faint printed texture on the cream panels only. */
