@@ -31,6 +31,13 @@
   <img src="docs/screenshots/editor.png" width="100%" alt="The AfterThemed editor: your theme, a live After Effects preview, and color customization">
 </p>
 
+## New in 2.1
+
+- **Built for Windows.** Real Windows window controls, a preview on neutral gray so colors read true, and a calmer layout where the installation you are theming is always in view.
+- **Motion with a purpose.** Theme Lens shows every place a color appears, the install rail shows each real stage of an install, and holding **B** compares with the starting palette.
+- **Faster to drive.** **Ctrl+K** finds any action, the AEP Downgrader shows exactly what will change before anything is written, and color dragging is smooth.
+- **More accessible.** Keyboard menus, Windows High Contrast support, and motion that follows the Windows animation setting.
+
 ## New in 2.0
 
 - **A new look.** The editor keeps its blue and ice colors with its own typography: Familjen Grotesk headings, native Windows text for controls, and IBM Plex Mono for hex codes, contrast ratios, and paths. Only **Install theme** is a pill, and the seven color roles read as one specimen bar with their hex codes.
@@ -141,7 +148,7 @@ If no verifiable original survives, repair that exact After Effects version thro
 
 ## Install
 
-1. Download `AfterThemed-Setup-2.0.0.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
+1. Download `AfterThemed-Setup-2.1.0.exe` from the [latest release](https://github.com/sorflow/afterthemed/releases/latest).
 2. Review and accept the proprietary EULA in Setup. Choose **Install for me only** (no administrator rights) or **Install for all users**, and pick the shortcuts and file associations you want.
 3. Launch AfterThemed and confirm the detected After Effects installation.
 4. Build a palette or import an existing theme.

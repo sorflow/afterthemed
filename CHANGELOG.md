@@ -2,6 +2,34 @@
 
 All notable changes to AfterThemed are recorded here. Dates use `YYYY-MM-DD`.
 
+## 2.1.0 - 2026-10-09
+
+### Interface
+
+- Use Windows caption buttons (Minimize, Maximize/Restore, Close) instead of macOS-style window dots. Double-click the title bar to maximize.
+- Show the After Effects preview on a neutral gray surround by default, so the surrounding color does not change how theme colors look. **Neutral surround** turns it off.
+- Rework the Theme column: theme files are a quiet list, and the installation a theme goes to is always visible at the bottom with **Restore stock**. The column fits without scrolling at the default window size.
+- Make the theme name the only large heading. About and Report bug move into a **More** menu that also opens the originals and data folders and the DLL color inventory.
+- Rebuild the **AEP Downgrader**: projects appear as a list, the inspector shows the exact changes for the selected project before anything is written, the action bar stays in view, and each target says what it changes. Ctrl+Enter downgrades, Ctrl+O adds projects, and arrow keys and Delete work in the list.
+
+### Motion
+
+- **Theme Lens**: hovering a color role pulses it once and outlines every place it appears in the preview, with a count.
+- An install rail under **Install theme** shows each real stage: preserving the original, generating the theme, then installing and verifying.
+- Hold **B** (or **Compare**) to see the palette the theme started from.
+- **Ctrl+K** opens a command center for every action; Ctrl+1 and Ctrl+2 switch between Themes and the AEP Downgrader.
+- Motion follows the Windows animation setting. **Appearance › Animate even when Windows animations are off** keeps it on.
+
+### Accessibility
+
+- Menus work from the keyboard, panels are labelled, the color picker's controls are announced correctly and large enough to click, and text is at least 11px.
+- Support Windows High Contrast: selections use the system highlight while theme colors stay accurate.
+- Fix two text colors that were too faint to read.
+
+### Performance
+
+- Color dragging no longer stutters: a quick drag settles in about 0.2 seconds instead of 2.5, and the editor no longer jumps back to an older color mid-drag.
+
 ## 2.0.0 - 2026-10-08
 
 ### Interface
