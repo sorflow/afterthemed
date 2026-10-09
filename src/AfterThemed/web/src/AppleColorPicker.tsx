@@ -1,7 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Pipette } from 'lucide-react'
-import { CloseIcon } from '@solar-icons/react/linear'
+import { Pipette, X } from 'lucide-react'
 import opacityChecker from './assets/figma-color-picker/opacity-checker.png'
 import materialPointer from './assets/figma-color-picker/material-pointer.svg'
 import addButton from './assets/figma-color-picker/add-button.svg'
@@ -215,7 +214,7 @@ export default function AppleColorPicker({ label, value, onChange }: AppleColorP
           <div className="apple-picker-title-row">
             <button type="button" aria-label="Eyedropper" onClick={useEyedropper}><Pipette size={22} strokeWidth={2} /></button>
             <strong>Colors</strong>
-            <button type="button" aria-label="Close color picker" onClick={() => setOpen(false)}><CloseIcon size={25} /></button>
+            <button type="button" aria-label="Close color picker" onClick={() => setOpen(false)}><X size={22} strokeWidth={2} /></button>
           </div>
         </div>
         <div className="apple-picker-segmented" role="tablist" aria-label="Color selection mode">
@@ -223,8 +222,8 @@ export default function AppleColorPicker({ label, value, onChange }: AppleColorP
         </div>
 
         <div id={`${pickerId}-panel`} role="tabpanel" aria-labelledby={`${pickerId}-${tab}`}>
-        {tab === 'grid' && <div className="apple-picker-grid" role="grid" aria-label="Color grid">
-          {colorGrid.flat().map(gridColor => <button key={gridColor} type="button" role="gridcell" aria-label={gridColor} aria-selected={color === gridColor} className={color === gridColor ? 'selected' : ''} style={{ backgroundColor: gridColor }} onClick={() => apply(gridColor)} />)}
+        {tab === 'grid' && <div className="apple-picker-grid" role="group" aria-label="Color grid">
+          {colorGrid.flat().map(gridColor => <button key={gridColor} type="button" aria-label={gridColor} aria-pressed={color === gridColor} className={color === gridColor ? 'selected' : ''} style={{ backgroundColor: gridColor }} onClick={() => apply(gridColor)} />)}
         </div>}
 
         {tab === 'spectrum' && <div className="apple-picker-spectrum apple-picker-main">

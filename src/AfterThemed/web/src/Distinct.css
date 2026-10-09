@@ -3,6 +3,10 @@
    - Shape: one pill (Install theme); everything else is square-shouldered, so hierarchy reads from shape.
    - No pulsing badges, no tracked uppercase labels, no glows. Imported last. */
 :root {
+  /* Motion vocabulary (motion.ts mirrors these): durations by job, three curves, no springs. */
+  --motion-press: 100ms; --motion-fast: 140ms; --motion-popover: 180ms; --motion-row: 200ms;
+  --motion-inspector: 220ms; --motion-panel: 260ms; --motion-signature: 380ms;
+  --ease-enter: cubic-bezier(0, 0, .4, 1); --ease-exit: cubic-bezier(.5, 0, 1, 1); --ease-move: cubic-bezier(.45, 0, .4, 1);
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-display: "Familjen Grotesk", "Segoe UI Variable Display", "Segoe UI", sans-serif;
   --font-data: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
@@ -59,7 +63,7 @@
 .contrast-warnings button, .hex-field, .lock-toggle, .dialog-button, .dialog-heading .dialog-icon,
 .install-option, .history-item, .restore-summary, .report-preview, .about-hero, .about-mark,
 .about-links button, .palette-option, .palette-search, .palette-featured-toggle, .fall-suggestion,
-.aep-row, .aep-status, .reapply-banner, .reapply-banner button, .dialog-note, .diagnostic-summary) {
+.reapply-banner, .reapply-banner button, .dialog-note, .diagnostic-summary) {
   border-radius: var(--r-control);
 }
 .segmented { border-radius: var(--r-control); }
@@ -71,3 +75,261 @@
 .theme-actions button svg, .import-palette svg, .preview-tools button svg, .dialog-button.ghost svg { display: none; }
 .theme-actions button, .import-palette, .preview-tools button { gap: 0; }
 .import-palette { padding-inline: 12px; }
+
+/* Windows caption buttons, flush with the top-right corner like every other Windows app. */
+.caption-buttons { align-self: flex-start; display: flex; flex: none; margin: 0 -24px 0 4px; }
+.caption-buttons button {
+  width: 46px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0;
+  background: transparent; color: var(--ui-text); font: 10px/1 "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif; cursor: default;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.caption-buttons button:hover { background: color-mix(in srgb, var(--ui-text) 12%, transparent); }
+.caption-buttons button:active { background: color-mix(in srgb, var(--ui-text) 20%, transparent); }
+.caption-buttons .caption-close:hover, .caption-buttons .caption-close:active { background: #c42b1c; color: #fff; }
+.caption-buttons button:focus-visible { outline: 2px solid var(--ui-text); outline-offset: -2px; }
+.window-controls { display: none; }
+.brand { margin-left: 0; }
+@media (max-width: 560px) { .caption-buttons { margin-right: -12px; } }
+
+/* Neutral surround: the preview sits on gray, because a saturated surround shifts how its colors are judged. */
+:root .workspace > .preview-card[data-neutral] {
+  --ui-surface: #1e1e1f; --ui-canvas: #161617; --ui-raised: #2a2a2c; --ui-raised-hover: #343437;
+  --ui-text: #ececee; --ui-muted: #a9a9ae; --ui-subtle: #8e8e94; --ui-ring: #3a3a3d; --ui-border: #4a4a4e;
+  --ui-accent: #ececee; --ui-accent-text: #1e1e1f; --ui-accent-soft: #2a2a2c; --ui-accent-muted: #ececee; --ui-warn: #ffb3c1;
+  color: var(--ui-text);
+}
+.preview-tools button[aria-pressed="true"] { background: var(--ui-raised); border-color: var(--ui-text); }
+
+/* Smallest readable size for labels and data in this dense layout. */
+.color-row .contrast-badge, .palette-ribbon code, .cutoff-control p, .path-block p,
+.installation-details small, .preview-footer span { font-size: 11px; }
+/* The footer status was a fixed gray (3.95:1 on the blue card); use the region's muted role. */
+.preview-footer span { color: var(--ui-muted); }
+.toggle-row small { color: var(--ui-muted); font-size: 11px; }
+
+/* Reduced motion: keep every state, drop the movement. */
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
+  .preview-stage[data-highlight] { animation: none !important; }
+  .preview-stage [data-role], .lens-label { animation: none !important; }
+  .pixel-install-button:is(:hover, :focus-visible, [aria-busy="true"]) .install-pixel,
+  .pixel-generate-button:is(:hover, :focus-visible) .install-pixel { animation: none !important; }
+  .title-actions .pixel-install-button:is(:hover, :focus-visible, [aria-busy="true"]) { transition: none; }
+  .aep-status.converting::before { animation: none !important; }
+ } }
+
+/* Windows High Contrast: selection is shown with the system highlight, and theme colors stay real
+   because the swatches and the preview are the content being edited. */
+@media (forced-colors: active) {
+  .palette-ribbon button > span, .palette-strip, .palette-miniature, .apple-color-trigger, .apple-picker-grid button,
+  .apple-picker-saved button, .apple-picker-current, .preview-stage, .history-item .palette-strip { forced-color-adjust: none; }
+  :is([aria-pressed="true"], [aria-current="page"], [aria-checked="true"], [aria-selected="true"]) { outline: 2px solid Highlight; outline-offset: -2px; }
+  .segmented::before { display: none; }
+  .toggle-visual { border: 1px solid ButtonText; }
+  .toggle-visual::after { background: ButtonText; }
+  .toggle-row input:checked + .toggle-visual { background: Highlight; }
+  .aep-status::before, .change-list li::before, .version-rail i::before, .version-rail i::after { border-color: CanvasText; }
+  :focus-visible { outline: 2px solid Highlight !important; }
+}
+
+/* Picker page dots keep their 8px look inside a 28px target (the picker renders at about 0.9 scale). */
+.apple-picker-pages { height: 28px; gap: 0; }
+.apple-picker-pages button { width: 28px; height: 28px; border-radius: 50%; background: radial-gradient(circle, var(--apple-picker-label) 0 4px, transparent 4.5px); }
+
+/* Hold to compare. */
+.preview-tools .compare-button { touch-action: none; user-select: none; }
+.preview-tools .compare-button[aria-pressed="true"] { background: var(--ui-text); color: var(--ui-surface); }
+
+/* Command center (Ctrl+K). */
+.command-backdrop { place-items: start center; padding-top: 14vh; }
+.command-palette { width: min(560px, calc(100vw - 32px)); overflow: hidden; border: 1px solid var(--paper-border); border-radius: var(--r-card);
+  background: var(--paper); color: var(--ink); box-shadow: 0 24px 64px var(--shadow-ink); }
+.command-search { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--paper-ring); color: var(--paper-muted); }
+.command-search input { flex: 1; min-width: 0; height: 48px; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 14px; }
+.command-search input::placeholder { color: var(--paper-muted); }
+.command-palette kbd { padding: 1px 6px; border: 1px solid var(--paper-ring); border-radius: 3px; color: var(--paper-muted); font: 11px/1.4 var(--font-data); }
+.command-list { max-height: min(420px, 56vh); overflow: auto; margin: 0; padding: 6px; list-style: none; }
+.command-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 0 10px;
+  border-radius: var(--r-control); font-size: 13px; cursor: default; }
+.command-list li[data-group-start] { margin-top: 26px; position: relative; }
+.command-list li[data-group-start]:first-child { margin-top: 22px; }
+.command-list li[data-group-start]::before { content: attr(data-group-start); position: absolute; left: 10px; top: -20px; color: var(--paper-muted); font-size: 11px; }
+.command-list li[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+.command-list li[aria-selected="true"] kbd { border-color: var(--ink-line); color: var(--ink-muted); }
+.command-empty { color: var(--paper-muted); }
+@media (forced-colors: active) { .command-list li[aria-selected="true"] { outline: 2px solid Highlight; } }
+
+.aep-drop-icon { display: grid; place-items: center; }
+
+/* Install rail: the engine's stages as keyframes on a line, under the Install button. */
+.install-anchor { position: relative; display: inline-flex; }
+.install-rail {
+  position: absolute; z-index: 40; top: calc(100% + 10px); right: 0; width: 320px; padding: 16px 16px 14px;
+  border: 1px solid var(--paper-border); border-radius: var(--r-card); background: var(--paper); color: var(--ink);
+  box-shadow: 0 16px 40px var(--shadow-ink); cursor: default;
+}
+.install-rail ol { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 0 12px; padding: 0; list-style: none; }
+.install-rail li { position: relative; display: grid; justify-items: center; gap: 8px; color: var(--paper-muted); font-size: 11px; text-align: center; }
+.install-rail li + li::before {
+  content: ""; position: absolute; top: 5px; right: calc(50% + 9px); width: calc(100% - 18px); height: 1px;
+  background: var(--paper-ring);
+}
+.install-rail li + li::after {
+  content: ""; position: absolute; top: 5px; right: calc(50% + 9px); width: calc(100% - 18px); height: 1px;
+  background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform var(--motion-panel) var(--ease-move);
+}
+/* The line into a stage fills once the stage before it is done. */
+.install-rail li[data-state="done"] + li::after { transform: scaleX(1); }
+.install-rail i { width: 10px; height: 10px; border: 1.5px solid var(--paper-ring); transform: rotate(45deg); background: var(--paper);
+  transition: background-color var(--motion-fast) var(--ease-enter), border-color var(--motion-fast) var(--ease-enter); }
+.install-rail li[data-state="done"] { color: var(--ink); }
+.install-rail li[data-state="done"] i { border-color: var(--ink); background: var(--ink); }
+.install-rail li[data-state="current"] { color: var(--ink); }
+.install-rail li[data-state="current"] i { border-color: var(--ink); animation: aep-keyframe 900ms var(--ease-move) infinite; animation-duration: 900ms !important; }
+.install-rail li[data-state="failed"] { color: var(--paper-warn); }
+.install-rail li[data-state="failed"] i { border-color: var(--paper-warn); background: var(--paper-warn); }
+.install-rail strong { display: block; font: 500 14px/1.2 var(--font-display); text-align: center; }
+.install-rail[data-status="failed"] strong { color: var(--paper-warn); }
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
+  .install-rail li[data-state="current"] i { animation: none !important; background: color-mix(in srgb, var(--ink) 35%, var(--paper)); }
+  .install-rail li + li::after { transition: none; }
+ } }
+@media (forced-colors: active) { .install-rail i { border-color: CanvasText; } .install-rail li[data-state="done"] i { background: CanvasText; } }
+
+/* Appearance menu: separator and the animation preference. */
+.appearance-popover .menu-separator { display: block; height: 1px; margin: 6px 4px; background: var(--ui-ring); }
+.appearance-popover { width: 236px; }
+.appearance-popover .menu-check { height: auto; min-height: 38px; padding-block: 8px; line-height: 1.3; white-space: normal; }
+
+/* Title bar: the command center is one click away; rare actions live in the always-present More menu. */
+.title-actions .more-menu { display: block; }
+.command-trigger kbd { margin-left: 2px; padding: 0 5px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: 3px; font: 11px/1.5 var(--font-data); }
+.more-popover { width: 232px; }
+.more-popover button { display: flex; align-items: center; gap: 10px; height: 34px; justify-content: flex-start; text-align: left; }
+.more-popover button svg { flex: none; color: var(--ui-muted); }
+.more-popover .menu-separator { display: block; height: 1px; margin: 5px 4px; background: var(--ui-ring); }
+@media (min-width: 1101px) { .more-popover .menu-narrow-only { display: none; } }
+
+/* Theme studio: quiet tool columns, a larger specimen, and readable color roles.
+   Keep these scoped to the editor; application and authored palette colors stay independent. */
+.workspace > :is(.project-card, .inspector-card) {
+  --ui-text: color-mix(in srgb, var(--paper-muted) 38%, #202630);
+  --ui-muted: color-mix(in srgb, var(--paper-muted) 48%, #626978);
+  --ui-subtle: color-mix(in srgb, var(--paper-muted) 38%, #788293);
+  --ui-border: color-mix(in srgb, var(--paper-border) 42%, var(--paper));
+  --ui-ring: color-mix(in srgb, var(--paper-ring) 48%, var(--paper));
+  color: var(--ui-text);
+}
+.workspace .column-head { margin-bottom: 18px; }
+.workspace .column-head h2 { margin: 0; font: 500 20px/1.2 var(--font-display); letter-spacing: -.02em; }
+.project-card .field-label { color: var(--ui-muted); font-size: 12px; }
+.project-card .text-field { background: color-mix(in srgb, var(--paper) 55%, #fff); font-size: 13px; }
+.workspace :is(.text-field, .text-area):focus { border-color: var(--ui-accent); box-shadow: none; }
+.mode-switch button[aria-current="page"] { background: var(--ui-accent); color: var(--ui-accent-text); }
+.project-card > .palette-field-label { margin-top: 20px !important; }
+.project-card .current-palette { padding: 8px; background: color-mix(in srgb, var(--paper) 55%, #fff); }
+.project-card .current-palette-name { padding: 10px 2px 8px; font-weight: 500; }
+.project-card .browse-palette-label { padding: 10px 2px 3px; }
+.project-card .theme-library { margin-top: 16px; gap: 2px; }
+.project-card .theme-library button { height: 34px; font-size: 12px; }
+.project-card .library-separator { margin-block: 6px; }
+.project-card .target-block { padding-top: 10px; }
+.project-card .target-copy strong { font-size: 12px; }
+.project-card .target-foot { row-gap: 2px; }
+
+.workspace > .preview-card { padding: 20px; }
+.workspace .preview-heading { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
+.workspace .preview-heading .panel-heading { min-width: 180px; gap: 7px; }
+.workspace .preview-heading h1 { margin: 0; font-size: clamp(28px, 2.5vw, 36px); line-height: 1.12; letter-spacing: -.035em; }
+.workspace .preview-heading p { margin: 0; color: var(--ui-muted); font-size: 12px; }
+.workspace .preview-caption { font-size: 11px; }
+.workspace .preview-tools { width: auto; margin: 0; gap: 4px; flex-wrap: wrap; }
+.workspace .preview-tools button { height: 30px; padding-inline: 9px; font-size: 11px; }
+.workspace .preview-tools button:disabled { opacity: .42; }
+.workspace .preview-tools button[aria-pressed="true"] { border-color: var(--ui-subtle); }
+.workspace .palette-ribbon { margin-top: 20px; }
+.workspace .palette-ribbon button > span { height: 32px; }
+.workspace .palette-ribbon small { font-size: 10px; line-height: 1.4; }
+.workspace .palette-ribbon code { font-size: 10px; }
+.workspace .preview-footer { margin-top: 14px; padding-top: 12px; }
+.workspace .preview-footer span { font-family: var(--font-ui); font-size: 11px; }
+
+/* Size the composition from both available dimensions. Width alone clipped the discs
+   when the editor was short and the timeline took its minimum height. */
+.workspace .ae2-viewer { container-type: size; }
+.workspace .ae2-canvas {
+  width: min(90cqw, calc((100cqh - 2px) * 16 / 9), 520px);
+  height: auto; max-height: none; aspect-ratio: 16 / 9;
+}
+.workspace .ae2-disc-outer { width: auto; height: 58%; aspect-ratio: 1; }
+.workspace .ae2-disc-inner { width: auto; height: 26%; aspect-ratio: 1; }
+
+.inspector-card .segmented { flex: none; background: color-mix(in srgb, var(--paper-raised) 40%, var(--paper)); }
+.inspector-card .segmented button { font-size: 12px; }
+.inspector-card .inspector-content { padding: 16px 4px 4px; margin-inline: -4px; overscroll-behavior: contain; }
+.inspector-card .palette-tools { gap: 6px; margin-bottom: 20px; }
+.inspector-card .palette-tools button { height: 34px; font-size: 12px; }
+.inspector-card .color-groups { gap: 18px; }
+.inspector-card .color-group legend { padding-bottom: 6px; color: var(--ui-muted); font-size: 11px; font-weight: 500; }
+.inspector-card .color-list { gap: 0; }
+.inspector-card .color-row { min-height: 46px; padding: 5px 0; gap: 8px; }
+.inspector-card .color-row + .color-row { border-top: 1px solid var(--ui-ring); border-radius: 0; }
+.inspector-card .color-row label { font-size: 12px; color: var(--ui-text); }
+.inspector-card .color-row > .apple-color-trigger { width: 32px; height: 32px; border-radius: 6px; }
+.inspector-card .color-row .hex-field { width: 66px; font-size: 11px; color: var(--ui-muted); }
+.inspector-card .color-row .contrast-badge { font-size: 10px; color: var(--ui-muted); }
+.inspector-card .color-row .contrast-badge.failing { color: var(--ui-warn); }
+.inspector-card .lock-toggle { width: 26px; height: 30px; }
+.inspector-card .cutoff-control { margin-top: 18px; padding: 14px 0 6px; }
+.inspector-card .cutoff-control input { margin-block: 12px; }
+.inspector-card .activity-anchor { margin-top: 12px; }
+.inspector-card .activity-trigger { height: 36px; font-size: 12px; }
+
+@media (min-width: 1101px) {
+  .titlebar { height: 68px; }
+  .workspace { grid-template-columns: 212px minmax(0, 1fr) 292px; gap: 16px; padding: 16px 16px 20px; }
+  .workspace > :is(.project-card, .inspector-card) { padding: 16px 12px; }
+}
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .workspace { grid-template-columns: 204px minmax(0, 1fr) 276px; gap: 12px; }
+  .workspace > .preview-card { padding: 18px 16px; }
+  .workspace .preview-heading .panel-heading { min-width: 160px; }
+}
+@media (min-width: 1101px) and (max-width: 1180px) {
+  .titlebar .command-trigger :is(span, kbd) { display: none; }
+}
+@media (max-width: 1100px) {
+  .workspace .preview-stage { flex: 1; min-height: 280px; }
+  .workspace > .preview-card { overflow-y: auto; }
+  .workspace .preview-heading { flex: none; }
+  .workspace .preview-tools { width: 100%; }
+  .workspace .palette-ribbon small { overflow-wrap: anywhere; }
+  .workspace .palette-ribbon code { display: none; }
+}
+@media (max-width: 560px) {
+  .titlebar { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; min-height: 104px; padding: 0 12px 10px; gap: 4px 10px; }
+  .titlebar .brand { grid-column: 1; grid-row: 1; min-height: 42px; }
+  .titlebar .caption-buttons { grid-column: 2; grid-row: 1; margin: 0 -12px 0 0; justify-self: end; }
+  .titlebar .titlebar-drag { display: none; }
+  .titlebar .mode-switch { grid-column: 1; grid-row: 2; justify-self: start; margin: 0; }
+  .titlebar .title-actions { grid-column: 2; grid-row: 2; gap: 4px; }
+  .titlebar .title-actions .quiet-button { padding-inline: 8px; }
+  .workspace > .preview-card { padding: 16px 12px; }
+  .workspace .preview-stage { min-height: 340px; }
+  .workspace .preview-heading { gap: 12px; margin-bottom: 16px; }
+  .workspace .preview-heading h1 { font-size: 28px; }
+  .workspace .palette-ribbon { margin-top: 16px; }
+  .workspace .palette-ribbon small { font-size: 9px; }
+  .workspace > .inspector-card { padding: 18px 14px 14px; }
+}
+@media (min-width: 1101px) and (max-height: 760px) {
+  .workspace { padding-top: 10px; padding-bottom: 12px; }
+  .workspace .column-head { margin-bottom: 12px; }
+  .project-card > .palette-field-label { margin-top: 14px !important; }
+  .project-card .current-palette > .palette-miniature { height: 60px; }
+  .project-card .theme-library { margin-top: 10px; }
+  .project-card .theme-library button { height: 30px; }
+  .workspace .preview-heading { margin-bottom: 14px; }
+  .workspace .palette-ribbon { margin-top: 14px; }
+  .inspector-card .color-groups { gap: 12px; }
+  .inspector-card .color-row { min-height: 42px; }
+}

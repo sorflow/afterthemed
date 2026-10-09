@@ -93,11 +93,40 @@ internal static class AepDowngrader
 
     internal static AepDowngradeResult Downgrade(string input, string output, int targetMajor)
     {
-        var format = FormatFor(targetMajor);
-        var (targetHead, headTail) = TargetHeads[format];
         if (string.Equals(Path.GetFullPath(input), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Choose a different file name; the original project is never overwritten.");
+        var (bytes, root, riffEnd, source, target, changes) = Convert(input, targetMajor);
+        var rewritten = Serialize(root);
+        var temporary = output + ".partial";
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
+            {
+                stream.Write(rewritten);
+                stream.Write(bytes, riffEnd, bytes.Length - riffEnd); // XMP metadata after the RIFX form.
+            }
+            File.Move(temporary, output);
+        }
+        catch
+        {
+            File.Delete(temporary);
+            throw;
+        }
+        return new AepDowngradeResult(source, target, output, changes);
+    }
 
+    /// <summary>The changes a downgrade would make, computed by the same conversion without writing anything.</summary>
+    internal static AepDowngradeResult Preview(string input, int targetMajor)
+    {
+        var (_, _, _, source, target, changes) = Convert(input, targetMajor);
+        return new AepDowngradeResult(source, target, OutputPathFor(input, targetMajor), changes);
+    }
+
+    private static (byte[] Bytes, Chunk Root, int RiffEnd, AepVersion Source, AepVersion Target, List<string> Changes)
+        Convert(string input, int targetMajor)
+    {
+        var format = FormatFor(targetMajor);
+        var (targetHead, headTail) = TargetHeads[format];
         if (new FileInfo(input).Length > int.MaxValue - 64)
             throw new InvalidDataException("Projects larger than 2 GB are not supported.");
         var bytes = File.ReadAllBytes(input);
@@ -145,24 +174,7 @@ internal static class AepDowngrader
         }
         if (format < 19 && RemoveChunks(root, "ppSn") > 0)
             changes.Add("Removed a preview setting added after 18.x");
-
-        var rewritten = Serialize(root);
-        var temporary = output + ".partial";
-        try
-        {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-            {
-                stream.Write(rewritten);
-                stream.Write(bytes, riffEnd, bytes.Length - riffEnd); // XMP metadata after the RIFX form.
-            }
-            File.Move(temporary, output);
-        }
-        catch
-        {
-            File.Delete(temporary);
-            throw;
-        }
-        return new AepDowngradeResult(source, target, output, changes);
+        return (bytes, root, riffEnd, source, target, changes);
     }
 
     internal static AepVersion ReadVersion(byte[] head)

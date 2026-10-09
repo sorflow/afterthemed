@@ -152,7 +152,7 @@ input, textarea { caret-color: var(--ui-accent); }
 * { scrollbar-width: thin; scrollbar-color: var(--ui-subtle) transparent; }
 
 @media (min-width: 1101px) and (max-width: 1280px) {
-  .workspace { padding-inline: 16px; gap: 16px; grid-template-columns: 192px minmax(0, 1fr) 246px; }
+  .workspace { padding-inline: 16px; gap: 16px; grid-template-columns: 212px minmax(0, 1fr) 260px; }
   .workspace > .surface { padding-inline: 16px; }
 }
 @media (max-width: 1100px) {
@@ -206,9 +206,9 @@ input::placeholder, textarea::placeholder { color: var(--ui-muted); opacity: 1; 
 .palette-option:is(:hover, :focus-visible, [aria-pressed="true"]) .palette-preview-action { opacity: 1; transform: none; }
 .palette-option[aria-pressed="true"] { border: 1px solid var(--ui-accent); box-shadow: none; }
 @media (hover: none) { .palette-preview-action { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) { :where(:root:not([data-motion="on"])) { 
   .segmented::before, .segmented button, .palette-option .palette-strip, .palette-preview-action { transition: none; }
-}
+ } }
 
 /* Dropdown open/focus: one thin accent ring instead of outline + gap + border. */
 .editor-dropdown:focus-visible, .editor-dropdown[aria-expanded="true"] {

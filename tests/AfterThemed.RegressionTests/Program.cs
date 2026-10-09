@@ -120,6 +120,7 @@ internal static class Program
         Run("theme history keeps ten installs and notices replaced targets", ThemeHistoryTracksInstalls, failures);
         Run("AEP downgrade to 24.x changes only the version header", AepDowngradeTo24, failures);
         Run("AEP downgrade to 23.x removes Shadow Color and keeps everything else", AepDowngradeTo23, failures);
+        Run("AEP preview lists the same changes as the downgrade and writes nothing", AepPreviewMatchesDowngrade, failures);
         Run("AEP downgrade never overwrites and rejects unsuitable input", AepDowngradeRefusals, failures);
         Run("one theme installs into five After Effects versions as one rollback-safe set", MultiVersionFileSet, failures);
         Run("AEP downgrade to 22.x and 18.x converts layer records and falls back to 18.x", AepDowngradeOlderFormats, failures);
@@ -1726,6 +1727,27 @@ internal static class Program
             Require(changed.All(i => (i >= headData && i < headData + 8) || (i >= nhedData + 0x14 && i < nhedData + 0x20)),
                 "bytes outside the version header changed");
             Require(File.ReadAllBytes(input).SequenceEqual(original), "the original project was modified");
+        }
+        finally { DeleteTestDirectory(root); }
+    }
+
+    private static void AepPreviewMatchesDowngrade()
+    {
+        var root = NewTempDirectory("aep-preview");
+        try
+        {
+            var input = Path.Combine(root, "scene.aep");
+            File.WriteAllBytes(input, SampleAep());
+            foreach (var target in new[] { 24, 23, 22, 18 })
+            {
+                var preview = AepDowngrader.Preview(input, target);
+                Require(Directory.GetFiles(root).Length == 1, $"preview for {target}.x wrote a file");
+                Require(preview.OutputPath == AepDowngrader.OutputPathFor(input, target), "preview planned a different output path");
+                var result = AepDowngrader.Downgrade(input, preview.OutputPath, target);
+                Require(preview.Changes.SequenceEqual(result.Changes),
+                    $"{target}.x preview [{string.Join("; ", preview.Changes)}] != downgrade [{string.Join("; ", result.Changes)}]");
+                File.Delete(result.OutputPath);
+            }
         }
         finally { DeleteTestDirectory(root); }
     }

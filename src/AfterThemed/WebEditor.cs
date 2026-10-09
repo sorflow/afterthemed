@@ -14,6 +14,8 @@ public partial class Form1
     private BugReportBundle? webBugReport;
     private string webInstallStatus = "idle";
     private string webInstallDetail = string.Empty;
+    // The engine stage the install rail shows: original, generate, install, or done. A failure keeps the stage it failed in.
+    private string webInstallStage = string.Empty;
     private bool WebInstallBusy => webInstallStatus is "preparing" or "installing";
     private bool installAll;
     private string? pendingOpenFile;
@@ -23,12 +25,27 @@ public partial class Form1
     private List<ThemeDocument> gallery = [];
     private string galleryStatus = "idle";
     private string galleryError = string.Empty;
+    // Discovery scans every fixed drive and the uninstall registry, so it runs at startup and when the
+    // target changes, never on each published state.
+    private IReadOnlyList<AfterEffectsInstall> knownInstalls = [];
+    // The last command sequence number handled; the editor keeps its own edits until this catches up.
+    private int lastSeq;
+    private bool publishQueued;
+    private readonly System.Windows.Forms.Timer sessionSaveTimer = new() { Interval = 500 };
 
-    private void SetWebInstallStatus(string status, string detail)
+    private void SetWebInstallStatus(string status, string detail, string? stage = null)
     {
         webInstallStatus = status;
+        if (stage is not null) webInstallStage = stage;
         webInstallDetail = detail;
-        PublishWebState();
+        // Installs block the UI thread, so the status must go out now rather than on the next idle.
+        PublishWebStateNow();
+    }
+
+    private void ScheduleSaveSession()
+    {
+        sessionSaveTimer.Stop();
+        sessionSaveTimer.Start();
     }
     internal bool WebEditorBridgeReady;
 
@@ -55,6 +72,14 @@ public partial class Form1
         foreach (var item in replacedThemes)
             Log($"After Effects changed since your theme was installed · {item.Target}");
 
+        // The caption buttons switch between Maximize and Restore, so publish when that state flips.
+        var wasMaximized = WindowState == FormWindowState.Maximized;
+        SizeChanged += (_, _) =>
+        {
+            if (wasMaximized == (WindowState == FormWindowState.Maximized)) return;
+            wasMaximized = !wasMaximized;
+            PublishWebState();
+        };
         var editor = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = UiPalette.Window };
         webEditor = editor;
         editor.Visible = true;
@@ -126,6 +151,7 @@ public partial class Form1
             var root = message.RootElement;
             var type = root.GetProperty("type").GetString();
             var value = root.TryGetProperty("value", out var v) ? v.GetString() ?? string.Empty : string.Empty;
+            if (root.TryGetProperty("seq", out var seq) && seq.TryGetInt32(out var seqValue)) lastSeq = seqValue;
             if (type?.StartsWith("aep", StringComparison.Ordinal) == true)
             {
                 HandleAepMessage(type, value, files ?? []);
@@ -136,6 +162,7 @@ public partial class Form1
             if (type is "preset" or "name" or "color" or "cutoff" or "text" or "font" or "themePanels" or "reset" or "import" or "chooseInstall" or "browseInstall" or "restore" or "applyShareCode" or "historyLoad" or "galleryUse")
             {
                 webInstallStatus = "idle";
+                webInstallStage = string.Empty;
                 webInstallDetail = string.Empty;
             }
             switch (type)
@@ -242,7 +269,7 @@ public partial class Form1
             }
             if (type is "preset" or "name" or "color" or "cutoff" or "text" or "font" or "themePanels" or "reset" or "import" or
                 "applyShareCode" or "historyLoad" or "galleryUse" or "reapply")
-                SaveSession();
+                ScheduleSaveSession();
             PublishWebState();
         }
         catch (Exception ex)
@@ -252,15 +279,30 @@ public partial class Form1
         }
     }
 
+    /// <summary>
+    /// One color edit changes several native controls, each of which asks to publish; coalesce them into
+    /// a single state message sent when the current UI message finishes.
+    /// </summary>
     private void PublishWebState()
     {
+        if (publishQueued || !webEditorReady || IsDisposed || Disposing) return;
+        publishQueued = true;
+        BeginInvoke(PublishWebStateNow);
+    }
+
+    private void PublishWebStateNow()
+    {
+        publishQueued = false;
         if (!webEditorReady || IsDisposed || Disposing || webEditor is null || webEditor.IsDisposed) return;
-        var installations = AfterEffectsCatalog.Discover();
+        var installations = knownInstalls;
         var state = new
         {
             type = "state",
+            ack = lastSeq,
+            maximized = WindowState == FormWindowState.Maximized,
             installStatus = webInstallStatus,
             installDetail = webInstallDetail,
+            installStage = webInstallStage,
             themeName = themeName.Text,
             presetIndex = preset.SelectedIndex,
             presets = BuiltInPresets.Select(item => item.Label).ToArray(),

@@ -1,27 +1,31 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import {
   Activity, ArrowDownToLine, ArrowUpRight, Bug, Check, CheckCircle2, ChevronDown, CircleHelp,
-  Copy, Download, ExternalLink, FileCog, FileDown, FileSearch, FolderOpen, History, ImageUp, Info, Layers3, Leaf, Lock, LockOpen, Minus, Moon,
-  Palette, Plus, RefreshCw, RotateCcw, ScanSearch, Settings2, Share2, ShieldCheck, Shuffle,
-  Store, Sun, TriangleAlert, Type, X, Blend,
+  Copy, Download, ExternalLink, FileCog, FileDown, FileSearch, FolderOpen, History, ImageUp, Info, Layers3, Leaf, Lock, LockOpen, Moon,
+  Palette, RefreshCw, RotateCcw, ScanSearch, Settings2, Share2, ShieldCheck, Shuffle,
+  ChevronsUpDown, MoreHorizontal, Search, Sparkles, Store, Sun, TriangleAlert, Type, X, Blend,
 } from 'lucide-react'
 import AePreview from './AePreview'
+import CommandPalette, { type Command as PaletteCommand } from './CommandPalette'
+import { duration, ease, leave } from './motion'
 import LogoMark from './LogoMark'
 import AboutSocialIcon from './AboutSocialIcon'
 import AepDowngrader, { type AepState } from './AepDowngrader'
-import InstallThemeButton, { type InstallStatus } from './InstallThemeButton'
+import InstallThemeButton, { InstallRail, type InstallStage, type InstallStatus } from './InstallThemeButton'
 import PixelField from './PixelField'
 import AppleColorPicker from './AppleColorPicker'
 import Dropdown from './Dropdown'
 import PaletteBrowser, { PaletteMiniature, PaletteStrip, type PresetPreview } from './PaletteBrowser'
 import demoPresets from './demoPresets.json'
-import { contrastReport, fixAll, generateFromColor, highlightFor, paletteFromImage, shuffle, themeThumbnail } from './paletteTools'
+import { contrast, contrastReport, fixAll, generateFromColor, highlightFor, paletteFromImage, shuffle, themeThumbnail } from './paletteTools'
 
 type EditorState = {
   type: 'state'
+  ack?: number
   installStatus?: InstallStatus
   installDetail?: string
+  installStage?: InstallStage
   themeName: string
   presetIndex: number
   presets: string[]
@@ -39,6 +43,7 @@ type EditorState = {
   panelDetails: string
   log: string
   version: string
+  maximized?: boolean
   installations: Array<{
     path: string
     name: string
@@ -72,6 +77,7 @@ type Command = {
   type: string
   value?: string
   key?: string
+  seq?: number
 }
 
 declare global {
@@ -134,8 +140,10 @@ const demoState: EditorState = {
   bugReport: null,
 }
 
+// Every command is numbered; the desktop app echoes the last number it handled as `ack`.
+let sentSeq = 0
 const send = (type: string, value?: string, key?: string) =>
-  window.chrome?.webview?.postMessage({ type, value, key })
+  window.chrome?.webview?.postMessage({ type, value, key, seq: ++sentSeq })
 
 function validColor(value: string | undefined, fallback: string) {
   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback
@@ -144,7 +152,31 @@ function validColor(value: string | undefined, fallback: string) {
 function IconButton({ label, children, onClick, className = '' }: {
   label: string, children: ReactNode, onClick: () => void, className?: string
 }) {
-  return <motion.button className={`icon-button ${className}`} type="button" title={label} aria-label={label} onClick={onClick} whileHover={{ scale: 1.045 }} whileTap={{ scale: .94 }} transition={{ type: 'spring', stiffness: 420, damping: 24 }}>{children}</motion.button>
+  return <button className={`icon-button ${className}`} type="button" title={label} aria-label={label} onClick={onClick}>{children}</button>
+}
+
+/** Popup menu behavior: focus the checked or first item, arrows move, Escape returns to the trigger, leaving closes. */
+function menuProps(close: () => void, trigger: RefObject<HTMLButtonElement | null>) {
+  // Only visible items: some entries are hidden at certain window widths.
+  const items = (menu: HTMLElement) => [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')].filter(item => item.getClientRects().length > 0)
+  return {
+    ref: (menu: HTMLDivElement | null) => {
+      if (menu && !menu.contains(document.activeElement))
+        (items(menu).find(item => item.getAttribute('aria-checked') === 'true') ?? items(menu)[0])?.focus()
+    },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const list = items(event.currentTarget)
+      const index = list.indexOf(document.activeElement as HTMLElement)
+      const next = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: list.length - 1 }[event.key]
+      if (next !== undefined) { event.preventDefault(); list[(next + list.length) % list.length]?.focus() }
+      else if (event.key === 'Escape') { event.preventDefault(); close(); trigger.current?.focus() }
+      else if (event.key === 'Tab') close()
+    },
+    onBlur: (event: FocusEvent<HTMLDivElement>) => {
+      const to = event.relatedTarget as Node | null
+      if (!event.currentTarget.contains(to) && to !== trigger.current) close()
+    },
+  }
 }
 
 function Modal({ title, description, icon, onClose, children, wide = false }: {
@@ -188,10 +220,10 @@ function Modal({ title, description, icon, onClose, children, wide = false }: {
     }
   }, [onClose])
 
-  return <motion.div className="dialog-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .16 }} onMouseDown={event => {
+  return <motion.div className="dialog-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: leave(duration.popover) }} transition={{ duration: duration.popover, ease: ease.enter }} onMouseDown={event => {
     if (event.target === event.currentTarget) onClose()
   }}>
-    <motion.div ref={dialog} className={`app-dialog ${wide ? 'app-dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-description" initial={{ opacity: 0, y: 12, scale: .975 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: .985 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}>
+    <motion.div ref={dialog} className={`app-dialog ${wide ? 'app-dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-description" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4, transition: leave(duration.inspector) }} transition={{ duration: duration.inspector, ease: ease.enter }}>
       <div className="dialog-heading">
         <span className="dialog-icon" aria-hidden="true">{icon}</span>
         <div><h2 id="dialog-title">{title}</h2><p id="dialog-description">{description}</p></div>
@@ -222,6 +254,8 @@ function App() {
   const [activityPage, setActivityPage] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)
   const [appearanceOpen, setAppearanceOpen] = useState(false)
+  const appearanceTrigger = useRef<HTMLButtonElement>(null)
+  const moreTrigger = useRef<HTMLButtonElement>(null)
   const [dialog, setDialog] = useState<DialogName>(null)
   const [selectedInstall, setSelectedInstall] = useState('')
   const [mode, setMode] = useState<'themes' | 'downgrader'>(() => {
@@ -232,6 +266,35 @@ function App() {
     try { localStorage.setItem('afterthemed-mode', next) } catch { /* the choice is only a convenience */ }
   }
   const [fallFilter, setFallFilter] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
+  // Motion follows the Windows animation setting unless the user asks to always animate.
+  const [alwaysAnimate, setAlwaysAnimateState] = useState(() => {
+    try { return localStorage.getItem('afterthemed-motion') === 'on' } catch { return false }
+  })
+  const setAlwaysAnimate = (on: boolean) => {
+    setAlwaysAnimateState(on)
+    try { localStorage.setItem('afterthemed-motion', on ? 'on' : 'system') } catch { /* only a convenience */ }
+  }
+  useEffect(() => {
+    if (alwaysAnimate) document.documentElement.dataset.motion = 'on'
+    else delete document.documentElement.dataset.motion
+  }, [alwaysAnimate])
+  // The install rail stays after a finished install until clicked, or for a few seconds after success.
+  const [railFor, setRailFor] = useState<string | null>(null)
+  useEffect(() => {
+    setRailFor(null)
+    if (state.installStatus !== 'installed') return
+    const timer = setTimeout(() => setRailFor('installed'), 6000)
+    return () => clearTimeout(timer)
+  }, [state.installStatus])
+  // A colored surround shifts how colors are perceived, so the preview sits on neutral gray unless turned off.
+  const [neutralPreview, setNeutralPreviewState] = useState(() => {
+    try { return localStorage.getItem('afterthemed-neutral-preview') !== 'false' } catch { return true }
+  })
+  const setNeutralPreview = (on: boolean) => {
+    setNeutralPreviewState(on)
+    try { localStorage.setItem('afterthemed-neutral-preview', String(on)) } catch { /* only a convenience */ }
+  }
   // The desktop app asks for a tab when Explorer opens a file with AfterThemed.
   const handledNavigation = useRef(0)
   useEffect(() => {
@@ -241,6 +304,9 @@ function App() {
     }
   }, [state.navigate])
   const [highlight, setHighlight] = useState<number | null>(null)
+  const stage = useRef<HTMLDivElement>(null)
+  const [comparing, setComparing] = useState(false)
+  const [base, setBase] = useState<{ name: string; colors: string[] } | null>(null)
   const [locked, setLocked] = useState<boolean[]>(() => colorNames.map(() => false))
   const [toolNote, setToolNote] = useState('')
   const [shareInput, setShareInput] = useState('')
@@ -254,7 +320,14 @@ function App() {
     const webview = window.chrome?.webview
     if (!webview) return
     const receive = (event: MessageEvent<EditorState>) => {
-      if (event.data?.type === 'state') setState(event.data)
+      const next = event.data
+      if (next?.type !== 'state') return
+      // A state older than the latest command would undo edits still in flight (a color drag would
+      // snap back), so keep the editor's own values until the desktop app has caught up.
+      setState(previous => (next.ack ?? 0) < sentSeq ? {
+        ...next, colors: previous.colors, presetIndex: previous.presetIndex, themeName: previous.themeName,
+        cutoff: previous.cutoff, textReplacements: previous.textReplacements,
+      } : next)
     }
     webview.addEventListener('message', receive)
     webview.postMessage({ type: 'ready' })
@@ -268,6 +341,33 @@ function App() {
     else delete document.documentElement.dataset.uiPalette
     localStorage.setItem('afterthemed-ui-theme', uiTheme)
   }, [uiTheme])
+
+  // The comparison base is the palette as it was loaded: a preset, an import, a share code, history or gallery.
+  const loadedPreset = state.presetIndex < state.presets.length ? state.presetIndex : -1
+  const baseStatus = useRef<string | null>(null)
+  useEffect(() => {
+    // Editing turns the palette custom without a new load; only a load (new status or preset) moves the base.
+    const loaded = baseStatus.current !== state.importStatus || loadedPreset >= 0
+    baseStatus.current = state.importStatus
+    if (!loaded) return
+    setBase({ name: loadedPreset >= 0 ? state.presets[loadedPreset] : state.themeName || 'the loaded theme', colors: colorNames.map(name => validColor(state.colors[name], '#000000')) })
+  }, [state.importStatus, loadedPreset])
+
+  // Hold B to compare; Ctrl+K opens the command center; Ctrl+1 and Ctrl+2 switch tools.
+  useEffect(() => {
+    const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+    const down = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(open => !open); return }
+      if (event.ctrlKey && (event.key === '1' || event.key === '2')) { event.preventDefault(); switchMode(event.key === '1' ? 'themes' : 'downgrader'); return }
+      if (event.key.toLowerCase() === 'b' && !event.ctrlKey && !event.altKey && !event.repeat && !typing(event.target)) setComparing(true)
+    }
+    const up = (event: KeyboardEvent) => { if (event.key.toLowerCase() === 'b') setComparing(false) }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    const blur = () => setComparing(false)
+    window.addEventListener('blur', blur)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur) }
+  }, [])
 
   useEffect(() => {
     if (!selectedInstall && state.installations.length) {
@@ -354,52 +454,97 @@ function App() {
     onMouseEnter: () => setHighlight(index), onMouseLeave: () => setHighlight(null),
     onFocus: () => setHighlight(index), onBlur: () => setHighlight(null),
   })
-  const previewStyle = {
-    '--theme-bg': validColor(swatches['App Background'], '#10171D'),
-    '--theme-panel': validColor(swatches['Panel Color'], '#1C2930'),
-    '--theme-raised': validColor(swatches['Raised Surface'], '#2A3B43'),
-    '--theme-text': validColor(swatches['UI Text Color'], '#EFFCFB'),
-    '--theme-primary': validColor(swatches['Primary Accent'], '#44E0D2'),
-    '--theme-secondary': validColor(swatches['Secondary Accent'], '#80B2FF'),
-    '--theme-danger': validColor(swatches['Danger Accent'], '#FF7891'),
-  } as CSSProperties
+  // Hold to compare shows the palette this theme started from instead of the edited one.
+  const comparable = !!base && base.colors.join() !== paletteColors.join()
+  const shown = comparing && comparable ? base!.colors : paletteColors
+  const previewStyle = Object.fromEntries(roleVars.map((role, index) => [`--theme-${role}`, shown[index]])) as CSSProperties
+  const lensRole = highlight === null || comparing ? null : roleVars[highlight]
+  const lensFlash = highlight === null ? '' : highlightFor(paletteColors[highlight])
+  const lensCount = lensRole ? stage.current?.querySelectorAll(`[data-role~="${lensRole}"]`).length ?? 0 : 0
 
-  return <motion.div className="app-shell" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .24, ease: [.2, 0, 0, 1] }}>
-    <header className="titlebar">
-      <div className="window-controls">
-        <IconButton label="Close" onClick={() => send('close')} className="window-close"><X size={12} strokeWidth={2.5} /></IconButton>
-        <IconButton label="Minimize" onClick={() => send('minimize')} className="window-minimize"><Minus size={12} strokeWidth={2.5} /></IconButton>
-        <IconButton label="Maximize" onClick={() => send('maximize')} className="window-maximize"><Plus size={12} strokeWidth={2.5} /></IconButton>
-      </div>
-      <div className="brand" onMouseDown={event => { if (event.button === 0) send('drag') }}>
+  const themes = mode === 'themes'
+  const commands: PaletteCommand[] = [
+    { id: 'themes', group: 'Go to', label: 'Themes', shortcut: 'Ctrl+1', run: () => switchMode('themes') },
+    { id: 'downgrader', group: 'Go to', label: 'AEP Downgrader', shortcut: 'Ctrl+2', run: () => switchMode('downgrader') },
+    { id: 'install', group: 'Theme', label: 'Install theme', disabled: !themes, run: installTheme },
+    { id: 'generate', group: 'Theme', label: 'Generate theme files', disabled: !themes, run: () => send('generate') },
+    { id: 'palettes', group: 'Theme', label: 'Browse palettes', run: () => { switchMode('themes'); openDialog('palettes') } },
+    { id: 'import', group: 'Theme', label: 'Import theme file', run: () => send('import') },
+    { id: 'theme-dll', group: 'Theme', label: 'Theme a DLL file', run: () => send('themeDll') },
+    { id: 'share', group: 'Theme', label: 'Share theme', run: () => openDialog('share') },
+    { id: 'export', group: 'Theme', label: 'Export theme', run: exportTheme },
+    { id: 'history', group: 'Theme', label: 'Theme history', run: () => openDialog('history') },
+    { id: 'gallery', group: 'Theme', label: 'Community gallery', run: () => openDialog('gallery') },
+    { id: 'match', group: 'Colors', label: 'Match surfaces to primary', disabled: !themes, run: () => applyColors(generateFromColor(paletteColors)) },
+    { id: 'shuffle', group: 'Colors', label: 'Shuffle unlocked colors', disabled: !themes, run: () => applyColors(shuffle(paletteColors, locked)) },
+    { id: 'fix-contrast', group: 'Colors', label: 'Fix all contrast issues', disabled: !themes || issues.length === 0, run: () => applyColors(fixAll(paletteColors, locked)) },
+    { id: 'image', group: 'Colors', label: 'Palette from image', disabled: !themes, run: () => imageInput.current?.click() },
+    { id: 'neutral', group: 'View', label: neutralPreview ? 'Show preview on the theme surface' : 'Show preview on neutral gray', run: () => setNeutralPreview(!neutralPreview) },
+    ...(['dark', 'light', 'mocha', 'fall'] as const).map(value => ({ id: `appearance-${value}`, group: 'View', label: `Appearance: ${appearanceLabels[value]}`, disabled: uiTheme === value, run: () => switchUiTheme(value) })),
+    { id: 'motion', group: 'View', label: alwaysAnimate ? 'Follow the Windows animation setting' : 'Animate even when Windows animations are off', run: () => setAlwaysAnimate(!alwaysAnimate) },
+    { id: 'install-target', group: 'After Effects', label: 'Choose installation', run: () => openDialog('install') },
+    { id: 'restore', group: 'After Effects', label: 'Restore stock After Effects', run: () => openDialog('restore') },
+    { id: 'originals', group: 'Files', label: 'Open originals folder', run: () => send('openOriginals') },
+    { id: 'data', group: 'Files', label: 'Open AfterThemed data folder', run: () => send('openData') },
+    { id: 'inventory', group: 'Files', label: 'DLL color inventory', run: () => send('inventory') },
+    { id: 'about', group: 'Help', label: 'About AfterThemed', run: () => openDialog('about') },
+    { id: 'bug', group: 'Help', label: 'Report a bug', run: () => openDialog('bug') },
+  ]
+
+  return <MotionConfig reducedMotion={alwaysAnimate ? 'never' : 'user'}><motion.div className="app-shell" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: duration.panel, ease: ease.enter }}>
+    <header className="titlebar" onDoubleClick={event => { if ((event.target as HTMLElement).closest('.titlebar-drag, .brand')) send('maximize') }}>
+      <div className="brand" onMouseDown={event => { if (event.button === 0 && event.detail === 1) send('drag') }}>
         <span className="brand-mark" aria-hidden="true"><LogoMark /></span>
         <span><strong>AfterThemed</strong><small>Theme studio</small></span>
       </div>
-      <div className="mode-switch" role="tablist" aria-label="AfterThemed tools">
-        <button type="button" role="tab" aria-selected={mode === 'themes'} onClick={() => switchMode('themes')}><Palette size={15} /><span>Themes</span></button>
-        <button type="button" role="tab" aria-selected={mode === 'downgrader'} onClick={() => switchMode('downgrader')}><FileDown size={15} /><span>AEP Downgrader</span></button>
-      </div>
-      <div className="titlebar-drag" onMouseDown={event => { if (event.button === 0) send('drag') }} />
+      <nav className="mode-switch" aria-label="AfterThemed tools">
+        <button type="button" aria-label="Themes" title="Themes" aria-current={mode === 'themes' ? 'page' : undefined} onClick={() => switchMode('themes')}><Palette size={15} aria-hidden="true" /><span>Themes</span></button>
+        <button type="button" aria-label="AEP Downgrader" title="AEP Downgrader" aria-current={mode === 'downgrader' ? 'page' : undefined} onClick={() => switchMode('downgrader')}><FileDown size={15} aria-hidden="true" /><span>AEP Downgrader</span></button>
+      </nav>
+      <div className="titlebar-drag" onMouseDown={event => { if (event.button === 0 && event.detail === 1) send('drag') }} />
       <div className="title-actions">
         <div className="appearance-menu">
-          <motion.button className="quiet-button appearance-trigger" whileHover={{ y: -1 }} whileTap={{ scale: .97 }} transition={{ duration: .12 }} aria-label={`Appearance: ${appearanceLabels[uiTheme]}`} aria-haspopup="menu" aria-expanded={appearanceOpen} onClick={() => setAppearanceOpen(!appearanceOpen)}>
+          <button ref={appearanceTrigger} className="quiet-button appearance-trigger" aria-label={`Appearance: ${appearanceLabels[uiTheme]}`} aria-haspopup="menu" aria-expanded={appearanceOpen} onClick={() => setAppearanceOpen(!appearanceOpen)}>
             {uiTheme === 'light' ? <Sun size={15} /> : uiTheme === 'mocha' ? <Moon size={15} /> : uiTheme === 'fall' ? <Leaf size={15} /> : <Palette size={15} />}
             <span>{appearanceLabels[uiTheme]}</span>
             <ChevronDown size={13} />
-          </motion.button>
+          </button>
           <AnimatePresence>
-          {appearanceOpen && <motion.div className="appearance-popover" role="menu" aria-label="Appearance" initial={{ opacity: 0, y: -4, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -3, scale: .98 }} transition={{ duration: .14 }}>
+          {appearanceOpen && <motion.div className="appearance-popover" role="menu" aria-label="Appearance" {...menuProps(() => setAppearanceOpen(false), appearanceTrigger)} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: leave(duration.popover) }} transition={{ duration: duration.popover, ease: ease.enter }}>
             {([['dark', 'Blue', <Palette size={16} />], ['light', 'Ice', <Sun size={16} />], ['mocha', 'Midnight', <Moon size={16} />], ['fall', 'Fall', <Leaf size={16} />]] as const).map(([value, label, icon]) =>
-              <button role="menuitemradio" aria-checked={uiTheme === value} key={value} onClick={() => switchUiTheme(value)}>{icon}<span>{label}</span>{uiTheme === value && <Check size={14} />}</button>)}
+              <button role="menuitemradio" aria-checked={uiTheme === value} tabIndex={-1} key={value} onClick={() => { switchUiTheme(value); appearanceTrigger.current?.focus() }}>{icon}<span>{label}</span>{uiTheme === value && <Check size={14} />}</button>)}
+            <span className="menu-separator" role="separator" />
+            <button role="menuitemcheckbox" aria-checked={alwaysAnimate} tabIndex={-1} className="menu-check"
+              title="Windows animation effects are respected unless this is on" onClick={() => setAlwaysAnimate(!alwaysAnimate)}>
+              <Sparkles size={16} /><span>Animate even when Windows animations are off</span>{alwaysAnimate && <Check size={14} />}</button>
           </motion.div>}
           </AnimatePresence>
         </div>
-        <motion.button className="quiet-button" whileHover={{ y: -1 }} whileTap={{ scale: .97 }} transition={{ duration: .12 }} onClick={() => openDialog('about')}><CircleHelp size={15} /> About</motion.button>
-        <motion.button className="quiet-button" whileHover={{ y: -1 }} whileTap={{ scale: .97 }} transition={{ duration: .12 }} onClick={() => openDialog('bug')}><Bug size={15} /> Report bug</motion.button>
+        <button className="quiet-button command-trigger" onClick={() => setCommandOpen(true)} aria-keyshortcuts="Control+K" title="Search every command (Ctrl+K)">
+          <Search size={15} aria-hidden="true" /><span>Commands</span><kbd aria-hidden="true">Ctrl K</kbd></button>
         {mode === 'themes' && <><span className="title-divider" />
-        <motion.button className="secondary-button pixel-generate-button" whileHover={{ y: -1 }} whileTap={{ scale: .97 }} transition={{ duration: .12 }} onClick={() => send('generate')}><PixelField /><span className="generate-button-content"><Download size={14} /> Generate</span></motion.button>
-        <InstallThemeButton onInstall={installTheme} status={state.installStatus} detail={state.installDetail} colors={uiTheme === 'fall' ? leafColors : paletteColors} /></>}
-        <div className="more-menu"><button className="quiet-button" aria-label="More actions" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}><Settings2 size={17} /></button>{moreOpen && <div className="more-popover"><button onClick={() => { send('generate'); setMoreOpen(false) }}>Generate</button><button onClick={() => openDialog('about')}>About</button><button onClick={() => openDialog('bug')}>Report bug</button></div>}</div>
+        <button className="secondary-button pixel-generate-button" onClick={() => send('generate')}><PixelField /><span className="generate-button-content"><Download size={14} aria-hidden="true" /> Generate</span></button>
+        <span className="install-anchor">
+          <InstallThemeButton onInstall={installTheme} status={state.installStatus} detail={state.installDetail} colors={uiTheme === 'fall' ? leafColors : paletteColors} />
+          <AnimatePresence>{state.installStage && state.installStatus !== 'idle' && state.installStatus !== 'cancelled' && railFor !== state.installStatus &&
+            <InstallRail key="rail" status={state.installStatus} stage={state.installStage} onDismiss={() => setRailFor(state.installStatus ?? null)} />}</AnimatePresence>
+        </span></>}
+        <div className="more-menu"><button ref={moreTrigger} className="quiet-button" aria-label="More" title="More" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}><MoreHorizontal size={18} /></button>
+          {moreOpen && <div className="more-popover" role="menu" aria-label="More" {...menuProps(() => setMoreOpen(false), moreTrigger)}>
+            {mode === 'themes' && <button role="menuitem" tabIndex={-1} className="menu-narrow-only" onClick={() => { send('generate'); setMoreOpen(false) }}><Download size={15} aria-hidden="true" />Generate theme files</button>}
+            <button role="menuitem" tabIndex={-1} onClick={() => { send('openOriginals'); setMoreOpen(false) }}><FolderOpen size={15} aria-hidden="true" />Open originals folder</button>
+            <button role="menuitem" tabIndex={-1} onClick={() => { send('openData'); setMoreOpen(false) }}><FolderOpen size={15} aria-hidden="true" />Open AfterThemed data folder</button>
+            <button role="menuitem" tabIndex={-1} onClick={() => { send('inventory'); setMoreOpen(false) }}><ScanSearch size={15} aria-hidden="true" />DLL color inventory</button>
+            <span className="menu-separator" role="separator" />
+            <button role="menuitem" tabIndex={-1} onClick={() => openDialog('about')}><CircleHelp size={15} aria-hidden="true" />About AfterThemed</button>
+            <button role="menuitem" tabIndex={-1} onClick={() => openDialog('bug')}><Bug size={15} aria-hidden="true" />Report a bug</button>
+          </div>}</div>
+      </div>
+      {/* Windows caption buttons: the app runs on Windows, so it uses Windows window controls. */}
+      <div className="caption-buttons">
+        <button type="button" aria-label="Minimize" title="Minimize" onClick={() => send('minimize')}><span aria-hidden="true">{''}</span></button>
+        <button type="button" aria-label={state.maximized ? 'Restore' : 'Maximize'} title={state.maximized ? 'Restore down' : 'Maximize'} onClick={() => send('maximize')}><span aria-hidden="true">{state.maximized ? '' : ''}</span></button>
+        <button type="button" className="caption-close" aria-label="Close" title="Close" onClick={() => send('close')}><span aria-hidden="true">{''}</span></button>
       </div>
     </header>
 
@@ -408,9 +553,9 @@ function App() {
       {['project', 'preview', 'customize'].map(section => <button key={section} aria-pressed={workspaceView === section} onClick={() => setWorkspaceView(section)}>{section === 'project' ? <FolderOpen size={16} /> : section === 'preview' ? <Layers3 size={16} /> : <Settings2 size={16} />}{section[0].toUpperCase() + section.slice(1)}</button>)}
     </nav>
     <main className="workspace" data-view={workspaceView}>
-      <aside className="project-card surface">
-        <div className="section-heading panel-heading"><h2>Theme</h2><p>Name, base palette and target install.</p></div>
-        <label className="field-label" htmlFor="theme-name">Theme name</label>
+      <aside className="project-card surface" aria-labelledby="theme-column-title">
+        <header className="column-head"><h2 id="theme-column-title">Theme</h2></header>
+        <label className="field-label" htmlFor="theme-name">Name</label>
         <input id="theme-name" className="text-field" value={state.themeName} onChange={e => edit('themeName', e.target.value, 'name')} spellCheck={false} />
         <span className="field-label palette-field-label">Starting palette</span>
         <button className="current-palette" onClick={() => openDialog('palettes')} aria-haspopup="dialog" aria-label={`Browse palettes. Current: ${activePaletteName}`}>
@@ -421,36 +566,40 @@ function App() {
         </button>
         {uiTheme === 'fall' && !fallPicks.includes(activePaletteName) &&
           <button className="fall-suggestion" onClick={() => { setFallFilter(true); openDialog('palettes') }}><Leaf size={15} /> Pair with a fall palette</button>}
-        <button className="import-palette" onClick={() => send('import')}><ArrowDownToLine size={16} /> Import theme file</button>
-        <button className="import-palette theme-dll" onClick={() => send('themeDll')}
-          title="Theme a dvaui.dll (and AfterFXLib.dll) copied from another PC. The files you pick are never changed."><FileCog size={16} /> Theme a DLL file</button>
-        <div className="theme-actions">
-          <button onClick={() => openDialog('share')}><Share2 size={15} /> Share</button>
-          <button onClick={exportTheme}><Download size={15} /> Export</button>
-          <button onClick={() => openDialog('history')}><History size={15} /> History</button>
-          <button onClick={() => openDialog('gallery')}><Store size={15} /> Gallery</button>
-        </div>
-        <details className="installation-details">
-          <summary><span className="installation-symbol">Ae</span><span><strong>{activeInstallation?.name || (state.target ? 'Selected installation' : 'Choose installation')}</strong><small>Installation & original files</small></span><ChevronDown size={14} /></summary>
-          <div className="installation-content">
-            <div className="path-block"><span className="field-label">Preserved original</span><p title={state.source}>{state.source || 'No original selected yet'}</p><IconButton label="Open originals folder" onClick={() => send('openOriginals')}><FolderOpen size={16} /></IconButton></div>
-            <div className="path-block"><span className="field-label">After Effects installation</span><p title={state.target}>{state.target || 'Choose an installation'}</p></div>
-            <button className="wide-action" onClick={() => openDialog('install')}><ScanSearch size={16} /> Choose installation</button>
-          </div>
-        </details>
+        {/* Theme files as a quiet list: bordered buttons of equal weight hid the hierarchy. */}
+        <nav className="theme-library" aria-label="Theme files">
+          <button onClick={() => send('import')}><ArrowDownToLine size={16} aria-hidden="true" /><span>Import theme file</span></button>
+          <button onClick={() => send('themeDll')} title="Theme a dvaui.dll (and AfterFXLib.dll) copied from another PC. The files you pick are never changed."><FileCog size={16} aria-hidden="true" /><span>Theme a DLL file</span></button>
+          <span className="library-separator" aria-hidden="true" />
+          <button onClick={() => openDialog('share')}><Share2 size={16} aria-hidden="true" /><span>Share code</span></button>
+          <button onClick={exportTheme}><Download size={16} aria-hidden="true" /><span>Export file</span></button>
+          <button onClick={() => openDialog('history')}><History size={16} aria-hidden="true" /><span>History</span></button>
+          <button onClick={() => openDialog('gallery')}><Store size={16} aria-hidden="true" /><span>Community gallery</span></button>
+        </nav>
         <div className="project-spacer" />
-        <div className="safety-note"><ShieldCheck size={18} /><span>Originals are preserved before a theme is installed.</span></div>
-        <button className="restore-stock" onClick={() => openDialog('restore')}><RotateCcw size={16} /> Restore stock After Effects</button>
-        <div className="utility-row">
-          <button onClick={() => send('inventory')}>Inventory</button>
-          <button onClick={() => send('openData')}>Files</button>
-        </div>
+        {/* Where the theme goes stays in view: it is the one fact every install depends on. */}
+        <section className="target-block" aria-label="Install target">
+          <button className="target-row" onClick={() => openDialog('install')} title={state.target || 'Choose the After Effects installation to theme'}>
+            <span className="installation-symbol" aria-hidden="true">Ae</span>
+            <span className="target-copy"><small>Installs into</small><strong>{activeInstallation?.name || (state.target ? 'Selected installation' : 'Choose installation')}</strong></span>
+            <ChevronsUpDown size={15} className="target-change" aria-hidden="true" />
+          </button>
+          <div className="target-foot">
+            {state.source && <span className="target-safety" title="The Adobe-signed original is preserved, so every change can be undone"><ShieldCheck size={14} aria-hidden="true" /> Original preserved</span>}
+            <button className="restore-link" aria-label="Restore stock After Effects" title="Restore stock After Effects" onClick={() => openDialog('restore')}>Restore stock</button>
+          </div>
+        </section>
       </aside>
 
-      <section className="preview-card surface" aria-label="Live theme preview">
+      <section className="preview-card surface" aria-label="Live theme preview" data-neutral={neutralPreview || undefined}>
         <div className="preview-heading">
           <div className="panel-heading"><div className="preview-caption">{activeInstallation?.name ?? 'After Effects'} preview</div><h1 title={state.themeName}>{state.themeName || 'Untitled theme'}</h1><p>Based on {activePaletteName}</p></div>
-          <div className="preview-tools"><button onClick={resetPalette} disabled={state.presetIndex >= state.presets.length} title="Reset the selected built-in palette"><RotateCcw size={15} /> Reset palette</button></div>
+          <div className="preview-tools"><button type="button" aria-pressed={neutralPreview} onClick={() => setNeutralPreview(!neutralPreview)}
+            title="Neutral gray around the preview, so the surrounding color does not shift how you judge the theme">Neutral surround</button><button type="button" className="compare-button" disabled={!comparable} aria-pressed={comparing && comparable}
+              title={comparable ? `Hold to compare with ${base!.name} (or hold B)` : 'Edit a color to compare with the starting palette'}
+              onPointerDown={() => setComparing(true)} onPointerUp={() => setComparing(false)} onPointerLeave={() => setComparing(false)} onPointerCancel={() => setComparing(false)}
+              onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setComparing(true) } }}
+              onKeyUp={() => setComparing(false)} onBlur={() => setComparing(false)}>Compare</button><button onClick={resetPalette} disabled={state.presetIndex >= state.presets.length} title="Reset the selected built-in palette"><RotateCcw size={15} /> Reset palette</button></div>
         </div>
         {state.replaced?.map(item => <div className="reapply-banner" role="alert" key={item.target}>
           <RefreshCw size={16} aria-hidden="true" />
@@ -458,16 +607,19 @@ function App() {
           <button onClick={() => send('reapply', item.target)}>Re-apply</button>
           <button className="reapply-dismiss" aria-label={`Dismiss re-apply for ${item.install}`} onClick={() => send('dismissReapply', item.target)}><X size={14} /></button>
         </div>)}
-        <div className="preview-stage" style={highlight === null ? previewStyle : { ...previewStyle, '--flash': highlightFor(paletteColors[highlight]) } as CSSProperties}
-          data-highlight={highlight === null ? undefined : roleVars[highlight]}>
+        <div ref={stage} className="preview-stage" style={lensRole ? { ...previewStyle, '--flash': lensFlash } as CSSProperties : previewStyle}
+          data-highlight={lensRole ?? undefined}>
           <AePreview themeName={state.themeName} />
+          {lensRole && <span className="lens-label" aria-hidden="true" style={{ background: lensFlash, color: contrast(lensFlash, '#000000') > contrast(lensFlash, '#FFFFFF') ? '#000000' : '#FFFFFF' }}>
+            {colorLabels[colorNames[highlight!]]} · {lensCount} {lensCount === 1 ? 'place' : 'places'}</span>}
+          {comparing && comparable && <span className="lens-label compare-label">Before · {base!.name}</span>}
         </div>
         <div className="palette-ribbon" aria-label="Theme color roles">{colorNames.map((name, index) => <button key={name} {...highlightProps(index)} onClick={() => focusColor(name)} aria-label={`Edit ${name}`} title={`${name}: ${paletteColors[index]}`}><span style={{ backgroundColor: paletteColors[index] }} /><small>{colorLabels[name]}</small><code>{paletteColors[index].slice(1)}</code></button>)}</div>
         <div className="preview-footer"><span title={state.importStatus} role="status">{state.importStatus || 'Live preview'}</span><button onClick={() => send('openOutput')}>Generated files <ArrowUpRight size={14} /></button></div>
       </section>
 
-      <aside className="inspector-card surface">
-        <div className="section-heading panel-heading"><h2>Customize</h2><p>Seven color roles, interface text and panels.</p></div>
+      <aside className="inspector-card surface" aria-labelledby="customize-column-title">
+        <header className="column-head"><h2 id="customize-column-title">Customize</h2></header>
         <div className="segmented" data-selected={page} role="tablist" aria-label="Customize theme" onKeyDown={event => {
           const tabs = ['colors', 'text', 'panels'] as const
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -525,7 +677,7 @@ function App() {
         {page === 'panels' && <div className="inspector-content" role="tabpanel" id="customize-panel-panels" aria-labelledby="customize-tab-panels"><p className="content-intro">Extend your palette to compatible CEP panels and choose a safe installed font.</p><label className="field-label" htmlFor="font">DVAUI font</label><Dropdown id="font" label="DVAUI font" value={state.font} onChange={value => edit('font', value, 'font')} options={state.fonts.map(font => ({ value: font, label: font }))} /><label className="toggle-row"><span><strong>Theme extension panels</strong><small>Apply the palette when installing a theme</small></span><input type="checkbox" checked={state.themePanels} onChange={e => edit('themePanels', e.target.checked, 'themePanels')} /><span className="toggle-visual" /></label><div className="panel-actions"><button onClick={() => send('scanPanels')}><RefreshCw size={15} /> Rescan</button><button onClick={() => send('applyPanels')}>Apply now</button></div><div className="panel-report"><strong>{state.panelStatus}</strong><pre>{state.panelDetails}</pre></div></div>}
         <div className="activity-anchor">
           <button className="activity-trigger" onClick={() => { setActivityOpen(!activityOpen); setActivityPage(0) }} aria-expanded={activityOpen}><span><Activity className="activity-wave" size={17} aria-hidden="true" /> Activity log</span><ChevronDown size={16} className={activityOpen ? '' : 'rotated'} /></button>
-          <AnimatePresence initial={false}>{activityOpen && <motion.div className="activity-popover" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: .16 }}>
+          <AnimatePresence initial={false}>{activityOpen && <motion.div className="activity-popover" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6, transition: leave(duration.popover) }} transition={{ duration: duration.popover, ease: ease.enter }}>
             <div className="activity-heading"><strong>Activity log</strong><button aria-label="Close activity log" onClick={() => setActivityOpen(false)}><X size={16} /></button></div>
             <pre>{state.log.trim().split('\n').reverse().slice(activityPage * 4, activityPage * 4 + 4).join('\n') || 'No activity yet.'}</pre>
             <div className="activity-pagination"><button disabled={activityPage === 0} onClick={() => setActivityPage(activityPage - 1)}>Newer</button><span>Page {activityPage + 1}</span><button disabled={(activityPage + 1) * 4 >= state.log.trim().split('\n').length} onClick={() => setActivityPage(activityPage + 1)}>Older</button></div>
@@ -534,6 +686,8 @@ function App() {
       </aside>
     </main>
     </> : <AepDowngrader state={state.aep} send={send} />}
+
+    <AnimatePresence>{commandOpen && <CommandPalette key="commands" commands={commands} onClose={() => setCommandOpen(false)} />}</AnimatePresence>
 
     {dialog === 'palettes' && <Modal title="Palettes" description={`${state.presets.length} built-in palettes. Pick a base; every color stays editable.`} icon={<Palette size={20} />} onClose={() => { setDialog(null); setFallFilter(false) }} wide>
       <PaletteBrowser names={state.presets} previews={state.presetPreviews ?? []} selected={state.presetIndex} onSelect={selectPreset}
@@ -654,7 +808,7 @@ function App() {
         <button className="dialog-button accent" onClick={() => setDialog(null)}>Done</button>
       </div>
     </Modal>}
-  </motion.div>
+  </motion.div></MotionConfig>
 }
 
 export default App
